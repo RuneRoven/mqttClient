@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -46,7 +47,9 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		productListHandler(w, r, mqttClient)
 	})
-
+	http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
+		updateData(w, r, mqttClient)
+	})
 	http.ListenAndServe(":"+port, nil)
 
 	// Set up signal handling for graceful shutdown
@@ -55,15 +58,27 @@ func main() {
 	<-sig
 }
 
+// generateHTML generates HTML for the given hierarchy
 func generateHTML(hierarchy MessageHierarchy) (template.HTML, error) {
-	var buf bytes.Buffer
+	var buf strings.Builder
 
-	for topic, value := range hierarchy {
+	// Get sorted keys ignoring case
+	keys := make([]string, 0, len(hierarchy))
+	for key := range hierarchy {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return strings.ToLower(keys[i]) < strings.ToLower(keys[j])
+	})
+
+	for _, key := range keys {
+		value := hierarchy[key]
+
 		// Opening list item tag
 		buf.WriteString("<li>")
 
 		// Add topic name
-		buf.WriteString("<span class=\"caret\">" + topic + "</span>")
+		buf.WriteString("<span class=\"caret\">" + key + "</span>")
 
 		// Check if the value is a sub-hierarchy
 		subHierarchy, ok := value.(MessageHierarchy)
@@ -88,6 +103,31 @@ func generateHTML(hierarchy MessageHierarchy) (template.HTML, error) {
 
 	return template.HTML(buf.String()), nil
 }
+func updateData(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) {
+	// Lock access to messageHierarchy
+	mqttClient.messageHierarchyMu.Lock()
+	defer mqttClient.messageHierarchyMu.Unlock()
+
+	// Prepare the data for the template
+	data := GetStableHierarchy()
+
+	// Convert the data to JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the content type header to indicate JSON data
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the JSON data to the response writer
+	_, err = w.Write(jsonData)
+	if err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		return
+	}
+}
 
 func productListHandler(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) {
 	// Lock access to messageHierarchy
@@ -111,11 +151,6 @@ func productListHandler(w http.ResponseWriter, r *http.Request, mqttClient *MQTT
 		http.Error(w, "Failed to execute template"+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	/*
-		// Execute the template
-		tmpl := template.Must(template.New("productList").Parse(productListTemplate))
-		tmpl.Execute(w, data)
-	*/
 }
 
 // UpdateStableHierarchy updates the stable hierarchy with the latest MQTT data
@@ -123,16 +158,9 @@ func UpdateStableHierarchy(newHierarchy MessageHierarchy) {
 	stableHierarchyMutex.Lock()
 	defer stableHierarchyMutex.Unlock()
 
-	// Get sorted keys
-	keys := make([]string, 0, len(newHierarchy))
-	for key := range newHierarchy {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	// Update stable hierarchy with sorted keys
-	for _, key := range keys {
-		stableHierarchy[key] = newHierarchy[key]
+	// Update stable hierarchy with new data
+	for key, value := range newHierarchy {
+		stableHierarchy[key] = value
 	}
 }
 

@@ -153,12 +153,9 @@ func (mc *MQTTClient) listenMessages() {
 	}
 }
 
-// newHierarchy := mc.messageHierarchy
-// UpdateStableHierarchy(newHierarchy)
 func (mc *MQTTClient) onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	mc.messageChannel <- string(msg.Payload())
 	mc.topicChannel <- string(msg.Topic())
-	//mc.completeMessage <- PrettyString(string(message.Payload()))
 }
 
 func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) MessageHierarchy {
