@@ -37,7 +37,7 @@ function updateTreeView(ul, newData, expandedItems, path = '') {
 
         if (!existingNode && nodePath !== path) {
             // If the node doesn't exist and the name is not "value", create it
-            if (key !== "value") {
+            if (key !== "hiddenMQTTvalue") {
                 var li = document.createElement("li");
                 // Get the count for the current key from the global variable
                 var keyCount = topicMessageCounts[nodePath] || 0;
@@ -94,7 +94,7 @@ function updateNodeValueDisplay(newData) {
     if (selectedNode) {
         var nodePath = selectedNode.getAttribute("data-name");
         var nodeData = getNodeData(nodePath, newData);
-        var value = nodeData ? nodeData.value : null;
+        var value = nodeData ? nodeData.hiddenMQTTvalue : null;
         document.getElementById("nodeValueDisplay").textContent = value || "No value available";
     } else {
         document.getElementById("nodeValueDisplay").textContent = "No node selected";
@@ -123,31 +123,6 @@ function countTopics(node) {
     }
     return Object.keys(node).length;
 }
-/*
-function countMessages(data) {
-    // Base case: if data is not an object, return 1 (assuming it represents a message)
-    if (typeof data !== 'object') {
-        return 1;
-    }
-
-    // Initialize count to 0
-    var count = 0;
-
-    // Iterate through each key in data
-    for (var key in data) {
-        // If the value is an object, recursively count messages
-        if (typeof data[key] === 'object') {
-            count += countMessages(data[key]);
-        } else {
-            // Otherwise, increment count by 1 (assuming it represents a message)
-            count++;
-        }
-    }
-
-    // Return the total count
-    return count;
-}
-*/
 // Global object to store message counts for each topic
 var topicMessageCounts = {};
 // Function to count messages for a specific key in the data
@@ -158,7 +133,7 @@ var messageCounts = {};
 // Function to update message counts for each topic
 function updateMessageCounts(data, path = '') {
     // Check if the current data is a leaf node (contains the "value" key)
-    if (data.hasOwnProperty("value")) {
+    if (data.hasOwnProperty("hiddenMQTTvalue")) {
         // Extract the topic from the path
         //var topicPath = path.split('/').slice(0, -1).join('/'); // Remove the last part (value)
         var topicPath = path;

@@ -172,33 +172,9 @@ func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) Mes
 			hierarchy = hierarchy[level].(MessageHierarchy)
 		} else {
 			// Create a new leaf node called "value" and store the message there
-			hierarchy[level] = MessageHierarchy{"value": msg}
+			hierarchy[level] = MessageHierarchy{"hiddenMQTTvalue": msg}
 		}
 	}
 
 	return mc.messageHierarchy
 }
-
-/*
-func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) MessageHierarchy {
-	hierarchy := mc.messageHierarchy
-
-	// Traverse the hierarchy based on the topic levels
-	for i, level := range topicLevels {
-		// Check if the current level exists in the hierarchy
-		if _, ok := hierarchy[level]; !ok {
-			// If not, create a new level
-			hierarchy[level] = make(MessageHierarchy)
-		}
-		// Move to the next level in the hierarchy
-		if i < len(topicLevels)-1 {
-			hierarchy = hierarchy[level].(MessageHierarchy)
-		} else {
-			// Assign the message to the leaf node
-			hierarchy[level] = msg
-		}
-	}
-
-	return mc.messageHierarchy
-}
-*/
