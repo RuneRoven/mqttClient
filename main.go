@@ -43,13 +43,22 @@ func main() {
 
 	mqttClient.Connect()
 	mqttClient.Subscribe(mqttTopic)
+	// Serve static files from the "static" directory
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		productListHandler(w, r, mqttClient)
-	})
+	// Define your API endpoints
 	http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
 		updateData(w, r, mqttClient)
 	})
+	/*
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			productListHandler(w, r, mqttClient)
+		})
+		http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
+			updateData(w, r, mqttClient)
+		})
+	*/
 	http.ListenAndServe(":"+port, nil)
 
 	// Set up signal handling for graceful shutdown
