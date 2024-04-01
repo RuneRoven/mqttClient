@@ -51,14 +51,7 @@ func main() {
 	http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
 		updateData(w, r, mqttClient)
 	})
-	/*
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			productListHandler(w, r, mqttClient)
-		})
-		http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
-			updateData(w, r, mqttClient)
-		})
-	*/
+
 	http.ListenAndServe(":"+port, nil)
 
 	// Set up signal handling for graceful shutdown
@@ -160,27 +153,4 @@ func productListHandler(w http.ResponseWriter, r *http.Request, mqttClient *MQTT
 		http.Error(w, "Failed to execute template"+err.Error(), http.StatusInternalServerError)
 		return
 	}
-}
-
-// UpdateStableHierarchy updates the stable hierarchy with the latest MQTT data
-func UpdateStableHierarchy(newHierarchy MessageHierarchy) {
-	stableHierarchyMutex.Lock()
-	defer stableHierarchyMutex.Unlock()
-
-	// Update stable hierarchy with new data
-	for key, value := range newHierarchy {
-		stableHierarchy[key] = value
-	}
-}
-
-// GetStableHierarchy returns a copy of the stable hierarchy for browsing
-func GetStableHierarchy() MessageHierarchy {
-	stableHierarchyMutex.RLock()
-	defer stableHierarchyMutex.RUnlock()
-	// Make a copy of the stable hierarchy to prevent concurrent modification
-	copiedHierarchy := make(MessageHierarchy)
-	for key, value := range stableHierarchy {
-		copiedHierarchy[key] = value
-	}
-	return copiedHierarchy
 }

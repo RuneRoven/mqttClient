@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+ul, #myUL {
+  list-style-type: none;
+}
+
+#myUL {
+  margin: 0;
+  padding: 0;
+}
+
+.caret {
+  cursor: pointer;
+  -webkit-user-select: none; /* Safari 3.1+ */
+  -moz-user-select: none; /* Firefox 2+ */
+  -ms-user-select: none; /* IE 10+ */
+  user-select: none;
+}
+
+.caret::before {
+  content: "\25B6";
+  color: black;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.caret-down::before {
+  -ms-transform: rotate(90deg); /* IE 9 */
+  -webkit-transform: rotate(90deg); /* Safari */
+  transform: rotate(90deg);  
+}
+
+.nested {
+  display: none;
+}
+
+.active {
+  display: block;
+}
+.tree{
+  --spacing : 1.5rem;
+  --radius  : 10px;
+}
+
+.tree li{
+  display      : block;
+  position     : relative;
+  padding-left : calc(2 * var(--spacing) - var(--radius) - 2px);
+}
+
+.tree ul{
+  margin-left  : calc(var(--radius) - var(--spacing));
+  padding-left : 0;
+}
+
+.tree ul li{
+  border-left : 2px solid #ddd;
+}
+
+.tree ul li:last-child{
+  border-color : transparent;
+}
+
+.tree ul li::before{
+  content      : '';
+  display      : block;
+  position     : absolute;
+  top          : calc(var(--spacing) / -2);
+  left         : -2px;
+  width        : calc(var(--spacing) + 2px);
+  height       : calc(var(--spacing) + 1px);
+  border       : solid #ddd;
+  border-width : 0 0 2px 2px;
+}
+
+li {
+  cursor: pointer; /* Make list items selectable */
+}
+.selected {
+  background-color: lightblue; /* Change background color for selected item */
+}
+</style>
+</head>
+<body>
+  <h2>MQTT client</h2>
+  <p>A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.</p>
+  <p>Click on the arrow(s) to open or close the tree branches.</p>
+  <ul id="myUL" class="tree">
+      <!-- Tree items will be dynamically added here -->
+  </ul>
+  <script>
+    // Function to update the list with fetched data
+function updateList(data) {
+    var myUL = document.getElementById("myUL");
+    var expandedItems = getExpandedItems(myUL); // Get currently expanded items
+
+    var newData = JSON.parse(data);
+
+    // Update the tree view based on the new data
+    updateTreeView(myUL, newData, expandedItems);
+}
+
+
+function updateTreeView(ul, newData, expandedItems) {
+    // Keep track of existing nodes
+    var existingNodes = new Map();
+    ul.querySelectorAll("li").forEach(function(item) {
+        var span = item.querySelector("span");
+        if (span) {
+            var key = span.textContent.trim().split(" topics:")[0]; // Remove " topics:" and everything to the right
+            existingNodes.set(key, item);
+        }
+    });
+
+    // Loop through the new data and update existing nodes or create new ones
+    for (var key in newData) {
+        var value = newData[key];
+        var existingNode = existingNodes.get(key);
+
+        if (!existingNode) {
+            // If the node doesn't exist, create it
+            var li = document.createElement("li");
+            li.innerHTML = `<span class="caret">${key} topics: ${countTopics(value)} - Messages: ${countMessages(value)}</span>`;
+            li.setAttribute("data-name", key);
+            if (typeof value === "object") {
+                // If the value is an object, it represents a sub-hierarchy
+                var nestedUl = document.createElement("ul");
+                nestedUl.className = "nested";
+                li.appendChild(nestedUl);
+                updateTreeView(nestedUl, value, expandedItems);
+            } else {
+                // If the value is a leaf node, add it as a list item
+                var leafLi = document.createElement("li");
+                leafLi.textContent = value;
+                li.appendChild(leafLi);
+            }
+
+            ul.appendChild(li);
+
+            // Restore expanded state for this node
+            var nodePath = getNodePath(li.querySelector('span'));
+            if (expandedItems.includes(nodePath)) {
+                li.querySelector('span').classList.add("caret-down");
+                li.querySelector('ul').classList.add("active");
+            }
+        } else {
+            // Node exists, update its children if any
+            if (typeof value === "object") {
+                var nestedUl = existingNode.querySelector("ul");
+                if (!nestedUl) {
+                    nestedUl = document.createElement("ul");
+                    nestedUl.className = "nested";
+                    existingNode.appendChild(nestedUl);
+                }
+                // Update the sub-hierarchy
+                updateTreeView(nestedUl, value, expandedItems);
+            } else {
+                // If the value is a leaf node, update the text content
+                var leafLi = existingNode.querySelector("li");
+                if (leafLi) {
+                    leafLi.textContent = value;
+                }
+            }
+        }
+        // Remove the node from the existing nodes map
+        existingNodes.delete(key);
+    }
+}
+
+
+// Function to count the number of topics (subnodes) under a given node
+function countTopics(node) {
+    if (typeof node !== 'object') {
+        return 0;
+    }
+    return Object.keys(node).length;
+}
+
+function countMessages(data) {
+    // Base case: if data is not an object, return 1 (assuming it represents a message)
+    if (typeof data !== 'object') {
+        return 1;
+    }
+
+    // Initialize count to 0
+    var count = 0;
+
+    // Iterate through each key in data
+    for (var key in data) {
+        // If the value is an object, recursively count messages
+        if (typeof data[key] === 'object') {
+            count += countMessages(data[key]);
+        } else {
+            // Otherwise, increment count by 1 (assuming it represents a message)
+            count++;
+        }
+    }
+
+    // Return the total count
+    return count;
+}
+
+
+// Function to fetch updated data from the server
+function fetchData() {
+    fetch('/get-updated-json-data')
+    .then(response => response.text())
+    .then(data => updateList(data))
+    .catch(error => console.error('Error fetching data:', error));
+}
+
+// Automatically fetch updated data every second
+setInterval(fetchData, 1000);
+
+    // Function to get the expanded state of tree nodes
+function getExpandedItems(ul) {
+    var expandedItems = JSON.parse(localStorage.getItem("expandedItems")) || [];
+    var caretNodes = ul.querySelectorAll("span.caret");
+    caretNodes.forEach(function(caretNode) {
+        if (caretNode.classList.contains("caret-down")) {
+            expandedItems.push(getNodePath(caretNode).trim());
+        }
+    });
+    return expandedItems;
+}
+
+// Function to get the hierarchical path of a node
+function getNodePath(node) {
+    var path = '';
+    var currentNode = node;
+    while (currentNode && currentNode.tagName !== 'UL') {
+        var nodeName = currentNode.textContent.trim();
+        path = nodeName + '.' + path;
+        currentNode = currentNode.parentElement;
+    }
+    return path.slice(0, -1); // Remove the trailing dot
+}
+
+document.getElementById("myUL").addEventListener("click", function(event) {
+    var target = event.target;
+    if (target.tagName === "SPAN" && target.classList.contains("caret")) {
+        // Toggle nested list visibility when caret is clicked
+        var nestedList = target.parentElement.querySelector(".nested");
+        if (nestedList) {
+            nestedList.classList.toggle("active");
+            target.classList.toggle("caret-down");
+            // Update the expanded state for this node
+            updateExpandedState(target.textContent.trim(), nestedList.classList.contains("active"));
+            
+            // If collapsing, collapse all child nodes recursively
+            if (!nestedList.classList.contains("active")) {
+                nestedList.querySelectorAll(".nested").forEach(function(childList) {
+                    childList.classList.remove("active");
+                });
+                nestedList.querySelectorAll(".caret").forEach(function(childCaret) {
+                    childCaret.classList.remove("caret-down");
+                });
+            }
+        }
+    } else if (target.tagName === "LI") {
+        // Check if the clicked item is already selected
+        var isSelected = target.classList.contains("selected");
+
+        // Deselect all list items
+        var listItems = document.querySelectorAll("#myUL .selected");
+        listItems.forEach(function(item) {
+            item.classList.remove("selected");
+        });
+
+        // If the clicked item was not already selected, select it
+        if (!isSelected) {
+            target.classList.add("selected");
+            selectedListItem = target;
+        } else {
+            selectedListItem = null;
+        }
+
+        // Get the name of the selected item
+        var name = target.getAttribute("data-name");
+        
+        // Call the callback function with the name
+        callback(name);
+    }
+});
+
+
+
+// Function to update the expanded state of a node
+function updateExpandedState(nodePath, isExpanded) {
+    var expandedItems = JSON.parse(localStorage.getItem("expandedItems")) || [];
+    if (isExpanded) {
+        // Add the node path to the expanded items list if it's expanded
+        if (!expandedItems.includes(nodePath)) {
+            expandedItems.push(nodePath);
+        }
+    } else {
+        // Remove the node path from the expanded items list if it's collapsed
+        expandedItems = expandedItems.filter(item => item !== nodePath);
+    }
+    // Store the updated expanded state in localStorage
+    localStorage.setItem("expandedItems", JSON.stringify(expandedItems));
+}
+// Define callback function
+function callback(name) {
+    // Initialize an array to store the levels
+    var levels = [];
+    
+    // Traverse the DOM hierarchy upwards from the selected item
+    var currentItem = selectedListItem;
+    while (currentItem && currentItem.tagName === "LI") {
+        // Get the name of the current item
+        var itemName = currentItem.getAttribute("data-name");
+        
+        // Add the name to the beginning of the levels array
+        levels.unshift(itemName);
+        
+        // Move to the parent node
+        currentItem = currentItem.parentElement.closest("li");
+    }
+    
+    // Construct the path by joining the levels with '/'
+    var path = levels.join("/");
+    
+    // Log or use the path as needed
+    console.log("Selected path:", path);
+}
+
+</script>
+
+
+</body>
+</html>

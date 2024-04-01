@@ -1,62 +1,76 @@
+.nodeValue {
+  width: 500px;
+  word-wrap: break-word;
+}
+
 ul, #myUL {
+    
     list-style-type: none;
-  }
-  
-  #myUL {
-    margin: 0;
+    width: 500px;
     padding: 0;
+    user-select: none;
   }
   
+  /* text in caret */
   .caret {
     cursor: pointer;
     -webkit-user-select: none; /* Safari 3.1+ */
     -moz-user-select: none; /* Firefox 2+ */
     -ms-user-select: none; /* IE 10+ */
     user-select: none;
+    color: rgb(139, 14, 14);
   }
   
+  /* collapsed list */
   .caret::before {
+    cursor: cell;
     content: "\25B6";
-    color: black;
     display: inline-block;
     margin-right: 6px;
+    user-select: none;
+    color: rgb(13, 212, 226);
   }
-  
+  /* expanded list */
   .caret-down::before {
+    cursor: cell;
     -ms-transform: rotate(90deg); /* IE 9 */
     -webkit-transform: rotate(90deg); /* Safari */
     transform: rotate(90deg);  
+    user-select: none;
+    color: rgb(13, 177, 48);
   }
   
-  .nested {
-    display: none;
-  }
-  
-  .active {
-    display: block;
-  }
+
   .tree{
+    border: 2px solid black;
+    border-radius:  10px;
     --spacing : 1.5rem;
     --radius  : 10px;
+    user-select: none;
   }
   
   .tree li{
+    cursor: grab;   
     display      : block;
     position     : relative;
     padding-left : calc(2 * var(--spacing) - var(--radius) - 2px);
+    user-select: none;
   }
   
   .tree ul{
     margin-left  : calc(var(--radius) - var(--spacing));
     padding-left : 0;
+    user-select: none;
   }
   
   .tree ul li{
     border-left : 2px solid #ddd;
+    user-select: none;
   }
   
   .tree ul li:last-child{
     border-color : transparent;
+    user-select: none;
   }
   
   .tree ul li::before{
@@ -69,12 +83,24 @@ ul, #myUL {
     height       : calc(var(--spacing) + 1px);
     border       : solid #ddd;
     border-width : 0 0 2px 2px;
+    user-select: none;
   }
+  .nested {
+    display: none;
+    user-select: none;
+  } */
+
+  .leaf-node > .caret {
+    display: none;
+    color: rgb(241, 218, 6);
+}
+.caret > .leaf-node {
   
-  li {
-    cursor: pointer; /* Make list items selectable */
-    
-    
+  color: rgb(0, 0, 0);
+}
+  .active {
+    display: block;
+    user-select: none;
   }
   .selected {
     background-color: lightblue; /* Change background color for selected item */
