@@ -17,11 +17,14 @@ function updateTreeView(ul, newData, expandedItems, path = '') {
         const value = newData[key];
         const nodePath = path ? `${path}/${key}` : key;
         const existingNode = existingNodes.get(nodePath);
-
-        if (!existingNode && nodePath !== path) {
+        
+        if (nodePath !== path) {
             createNewNode(ul, key, value, nodePath, expandedItems);
         } else if (typeof value === "object") {
-            updateExistingNode(existingNode, key, value, expandedItems, nodePath);
+            if (filterActive) {
+                updateExistingNode(existingNode, key, value, expandedItems, nodePath);
+            }
+            reapplyHighlights(existingNode, filterValue); // Reapply highlights to the updated node
         }
 
         existingNodes.delete(nodePath);
@@ -34,11 +37,12 @@ function getExistingNodes(ul, path) {
     ul.querySelectorAll("li").forEach(item => {
         const span = item.querySelector("span");
         if (span) {
-            const key = span.textContent.trim().split(" topics:")[0];
+            const key = span.textContent.trim().split(/ topics:| Messages:/)[0];
             const nodePath = path ? `${path}/${key}` : key;
             existingNodes.set(nodePath, item);
         }
     });
+    
     return existingNodes;
 }
 function createNewNode(ul, key, value, nodePath, expandedItems) {
@@ -81,8 +85,8 @@ function createNewNode(ul, key, value, nodePath, expandedItems) {
 }
 
 function updateExistingNode(existingNode, key, value, expandedItems, nodePath) {
+    
     if (!existingNode) return;
-
     let nestedUl = existingNode.querySelector("ul");
     if (!nestedUl) {
         nestedUl = document.createElement("ul");
@@ -113,25 +117,35 @@ function updateExistingNode(existingNode, key, value, expandedItems, nodePath) {
     }
 }
 
-function countTopicsInSubNodes(data) {
+function countTopicsInSubNodes(data, isLeaf = false) {
     let totalCount = 0;
+    // Determine if the current node is a leaf node
+    const isCurrentNodeLeaf = isLeaf || (!data.children || data.children.length === 0);
+
+    // If the current node is a leaf and has a message count, add it
+    if (isCurrentNodeLeaf && data.hiddenMQTTmsgCnt) {
+        return data.hiddenMQTTmsgCnt;
+    }
+
+    // Iterate through child nodes (if any) to aggregate message counts
     for (const key in data) {
         const value = data[key];
-        if (value && typeof value === "object") {
-            const messageCount = value.hiddenMQTTmsgCnt || 0;
-            totalCount += messageCount;
-            totalCount += countTopicsInSubNodes(value); // Recursively count topics in sub-nodes
-        } else if (key === "hiddenMQTTmsgCnt") {
-            totalCount += value || 0; // Add the message count if it's a leaf node
+        // Skip over any non-object properties or the special 'hiddenMQTTmsgCnt'
+        if (key !== "hiddenMQTTmsgCnt" && typeof value === "object") {
+            totalCount += countTopicsInSubNodes(value);
         }
     }
+
     return totalCount;
 }
+
+
 
 function updateNodeValueDisplay(newData) {
     var selectedNode = document.querySelector("#myUL .selected");
     if (selectedNode) {
-        var nodePath = selectedNode.getAttribute("data-name");
+        var listItem = selectedNode.closest("li"); // Get the closest parent <li> element
+        var nodePath = listItem.getAttribute("data-name"); // Retrieve data-name from the parent <li> element
         var nodeData = getNodeData(nodePath, newData);
         var value = nodeData ? nodeData.hiddenMQTTvalue : null;
         document.getElementById("nodeValueDisplay").textContent = value || "No value available";
@@ -140,7 +154,9 @@ function updateNodeValueDisplay(newData) {
     }
 }
 
+
 function getNodeData(nodePath, data) {
+    if (!nodePath) return null; // Check if nodePath is null or undefined
     var pathParts = nodePath.split('/');
     var node = data;
     for (var i = 0; i < pathParts.length; i++) {
@@ -153,6 +169,7 @@ function getNodeData(nodePath, data) {
     }
     return node;
 }
+
 
 // Function to fetch updated data from the server
 function fetchData() {
@@ -194,10 +211,8 @@ document.getElementById("myUL").addEventListener("click", function(event) {
     var listItem = target.closest("li");
     var isCaretClicked = target.classList.contains("caret");
     var isSpanClicked = target.tagName === "SPAN";
-    var isLeafNode = listItem.classList.contains("leaf-node");
     var isSelected = listItem.classList.contains("selected");
-
-    if (isCaretClicked || isSpanClicked) {
+    if (isCaretClicked || isSpanClicked ) {
         // Toggle nested list visibility when caret or object is clicked
         var nestedList = listItem.querySelector(".nested");
         if (nestedList) {
@@ -216,72 +231,24 @@ document.getElementById("myUL").addEventListener("click", function(event) {
                 });
             }
         }
-    } else {
+    }
         // Deselect all list items if the clicked item is not already selected
-        if (!isSelected) {
-            document.querySelectorAll("#myUL .selected").forEach(function(item) {
-                item.classList.remove("selected");
-            });
+    if (!isSelected) {
+        document.querySelectorAll("#myUL .selected").forEach(function(item) {
+            item.classList.remove("selected");
+        });
 
-            // Select the clicked item
-            listItem.classList.add("selected");
-            selectedListItem = listItem;
-        }
+        // Select the clicked item
+        //listItem.classList.add("selected");
+        listItem.querySelector("span").classList.add("selected"); // Add "selected" class to the span
+        selectedListItem = listItem;
+        
     }
 
     var topicName = listItem.getAttribute("data-name");
     callback(topicName);
 });
 
-
-/*
-document.getElementById("myUL").addEventListener("click", function (event) {
-    var target = event.target;
-    if (target.tagName === "SPAN" && (target.classList.contains("caret")) {
-        // Check if the parent list item has the class "leaf-node"
-        var isLeafNode = target.parentElement.classList.contains("leaf-node");
-        // If it's not a leaf node, toggle nested list visibility when caret is clicked
-        if (!isLeafNode) {
-            var nestedList = target.parentElement.querySelector(".nested");
-            if (nestedList) {
-                nestedList.classList.toggle("active");
-                target.classList.toggle("caret-down");
-                // Update the expanded state for this node
-                updateExpandedState(target.textContent.trim(), nestedList.classList.contains("active"));
-
-                // If collapsing, collapse all child nodes recursively
-                if (!nestedList.classList.contains("active")) {
-                    nestedList.querySelectorAll(".nested").forEach(function (childList) {
-                        childList.classList.remove("active");
-                    });
-                    nestedList.querySelectorAll(".caret").forEach(function (childCaret) {
-                        childCaret.classList.remove("caret-down");
-                    });
-                }
-            }
-        }
-    } else if (target.tagName === "LI") {
-        // Check if the clicked item is already selected
-        var isSelected = target.classList.contains("selected");
-
-        // Deselect all list items
-        var listItems = document.querySelectorAll("#myUL .selected");
-        listItems.forEach(function (item) {
-            item.classList.remove("selected");
-        });
-
-        // If the clicked item was not already selected, select it
-        if (!isSelected) {
-            target.classList.add("selected");
-            selectedListItem = target;
-        } else {
-            selectedListItem = null;
-        }      
-    }
-    var name = target.getAttribute("data-name");
-    callback(name);
-});
-*/
 
 // Function to update the expanded state of a node
 function updateExpandedState(nodePath, isExpanded) {

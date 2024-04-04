@@ -4,22 +4,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- <style src="listStyle.css"></style> -->
 <link rel="stylesheet" type="text/css" href="listStyle.css">
+<button id="collapseButton">Collapse All</button>
+<input type="text" id="filterInput" placeholder="Type to filter...">
+<button id="filterButton">Filter</button>
+<button id="resetButton">Reset</button>
+<label for="filterType">Highlight text on search</label>
+<input type="checkbox" id="filterType">
 </head>
 <body>
   <h2>MQTT client</h2>
   <p>A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.</p>
   <p>Click on the arrow(s) to open or close the tree branches.</p>
-  <br><b>Selected topic: </b>
-  <div id="selectedTopic"></div>
-  <br><b>Topic value: </b>
-  <div id="nodeValueDisplay" class="nodeValue"></div>
   <br>
-
-  <ul id="myUL" class="tree">
-      <!-- Tree items will be dynamically added here -->
-  </ul>
+  <div class="container">
+    
+    <div class="list">
+    
+        <ul id="myUL" class="tree">
+            <!-- Tree items will be dynamically added here -->
+        </ul>
+    </div>
+    <div class="right-side">
+        <b>Selected topic: </b>
+        <div id="selectedTopic" class="selectedTopic"></div>
+        <br><b>Topic value: </b>
+        <div id="nodeValueDisplay" class="nodeValue"></div>
+    </div>
+</div>
   <script src="nodelist.js"></script>
-
+  <script src="localButtons.js"></script> 
 
 </body>
 </html>

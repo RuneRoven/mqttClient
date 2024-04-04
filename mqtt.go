@@ -135,6 +135,11 @@ func (mc *MQTTClient) listenMessages() {
 				topic := <-mc.topicChannel
 				mc.messageHierarchyMu.Lock()
 				// Parse the topic into levels
+				// Ensure the topic is non-empty and does not contain only delimiters.
+				if topic == "" || strings.Trim(topic, "/") == "" {
+					log.Printf("Received an invalid or empty topic: %s", topic)
+					return
+				}
 				topicLevels := strings.Split(topic, "/")
 				// Create or get the existing hierarchy
 				mc.getOrCreateHierarchy(topicLevels, msg)
@@ -157,6 +162,7 @@ func (mc *MQTTClient) onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	mc.messageChannel <- string(msg.Payload())
 	mc.topicChannel <- string(msg.Topic())
 }
+
 func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) MessageHierarchy {
 	hierarchy := mc.messageHierarchy
 
@@ -171,7 +177,9 @@ func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) Mes
 		// Check if the current level exists in the hierarchy
 		if _, ok := currentLevel[level]; !ok {
 			// If not, create a new level
+			log.Println("new topic created, current level: ", currentLevel, " new level", level)
 			currentLevel[level] = make(MessageHierarchy)
+
 			newTopicCreated = true
 		}
 
@@ -218,25 +226,69 @@ func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topi
 	}
 }
 
+/*
 // UpdateStableHierarchy updates the stable hierarchy with the latest MQTT data
+
+	func UpdateStableHierarchy(newHierarchy MessageHierarchy) {
+		stableHierarchyMutex.Lock()
+		defer stableHierarchyMutex.Unlock()
+
+		// Update stable hierarchy with new data
+		for key, value := range newHierarchy {
+			stableHierarchy[key] = value
+		}
+	}
+
+// GetStableHierarchy returns a copy of the stable hierarchy for browsing
+
+	func GetStableHierarchy() MessageHierarchy {
+		stableHierarchyMutex.RLock()
+		defer stableHierarchyMutex.RUnlock()
+		// Make a copy of the stable hierarchy to prevent concurrent modification
+		copiedHierarchy := make(MessageHierarchy)
+		for key, value := range stableHierarchy {
+			copiedHierarchy[key] = value
+		}
+		return copiedHierarchy
+	}
+*/
+func GetStableHierarchy() MessageHierarchy {
+	stableHierarchyMutex.RLock()
+	defer stableHierarchyMutex.RUnlock()
+
+	copiedHierarchyInterface := DeepCopyHierarchy(stableHierarchy)
+	// Attempt to assert the copied hierarchy back to MessageHierarchy
+	copiedHierarchy, ok := copiedHierarchyInterface.(MessageHierarchy)
+	if !ok {
+		// Handle the error if the assertion fails
+		panic("Failed to assert the copied hierarchy as MessageHierarchy")
+	}
+
+	return copiedHierarchy
+}
+
 func UpdateStableHierarchy(newHierarchy MessageHierarchy) {
 	stableHierarchyMutex.Lock()
 	defer stableHierarchyMutex.Unlock()
 
-	// Update stable hierarchy with new data
 	for key, value := range newHierarchy {
-		stableHierarchy[key] = value
+		stableHierarchy[key] = DeepCopyHierarchy(value)
 	}
 }
 
-// GetStableHierarchy returns a copy of the stable hierarchy for browsing
-func GetStableHierarchy() MessageHierarchy {
-	stableHierarchyMutex.RLock()
-	defer stableHierarchyMutex.RUnlock()
-	// Make a copy of the stable hierarchy to prevent concurrent modification
-	copiedHierarchy := make(MessageHierarchy)
-	for key, value := range stableHierarchy {
-		copiedHierarchy[key] = value
+func DeepCopyHierarchy(src interface{}) interface{} {
+	switch srcTyped := src.(type) {
+	case MessageHierarchy:
+		dst := make(MessageHierarchy)
+		for key, val := range srcTyped {
+			dst[key] = DeepCopyHierarchy(val)
+		}
+		return dst
+	case int, string, float64: // Add more types as needed
+		return src
+	default:
+		// Optionally, handle unexpected types, or log them
+		fmt.Printf("Warning: Encountered an unhandled type: %T\n", src)
+		return src
 	}
-	return copiedHierarchy
 }

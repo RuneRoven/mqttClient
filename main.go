@@ -112,7 +112,7 @@ func updateData(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) 
 
 	// Prepare the data for the template
 	data := GetStableHierarchy()
-
+	//data := mqttClient.messageHierarchy
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
