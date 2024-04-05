@@ -17,16 +17,21 @@ function updateTreeView(ul, newData, expandedItems, path = '') {
         const value = newData[key];
         const nodePath = path ? `${path}/${key}` : key;
         const existingNode = existingNodes.get(nodePath);
-
-        if (!existingNode && nodePath !== path) {
+        
+        if (nodePath !== path) {
             createNewNode(ul, key, value, nodePath, expandedItems);
         } else if (typeof value === "object") {
             updateExistingNode(existingNode, key, value, expandedItems, nodePath);
+            
         }
-
+ 
         existingNodes.delete(nodePath);
     }
     updateNodeValueDisplay(newData)
+    if (filterActive) {
+        //reapplyHighlights(existingNode, filterValue); // Reapply highlights to the updated node
+        filterTreeHighLightReapply(filterValue);
+    }
 }
 
 function getExistingNodes(ul, path) {
@@ -34,115 +39,115 @@ function getExistingNodes(ul, path) {
     ul.querySelectorAll("li").forEach(item => {
         const span = item.querySelector("span");
         if (span) {
-            const key = span.textContent.trim().split(" topics:")[0];
+            const key = span.textContent.trim().split(/ topics:| Messages:/)[0];
             const nodePath = path ? `${path}/${key}` : key;
             existingNodes.set(nodePath, item);
         }
     });
+    
     return existingNodes;
 }
 function createNewNode(ul, key, value, nodePath, expandedItems) {
     if (key !== "hiddenMQTTvalue" && key !== "hiddenMQTTmsgCnt" && key !== "hiddenMQTTtopicCnt") {
-        const li = document.createElement("li");
-        const keyCount = (value && value.hiddenMQTTmsgCnt) ? value.hiddenMQTTmsgCnt : 0;
-        const topicCount = (value && value.hiddenMQTTtopicCnt) ? value.hiddenMQTTtopicCnt : 0;
-        //const isLeafNode = Object.keys(value || {}).length === 0; // Check if it's a leaf node
-        const isLeafNode = !value.hasOwnProperty("hiddenMQTTvalue"); 
-        const hasHiddenSubnodes = !isLeafNode && topicCount > 0;
+        const existingNode = ul.querySelector(`li[data-name="${nodePath}"]`);
 
-        // If it's a leaf node with hidden subnodes, add leaf-node class
-        if (isLeafNode && hasHiddenSubnodes) {
-            li.classList.add("leaf-node");
-            li.innerHTML = `<span>${key} - Messages: ${keyCount}</span>`;
+        if (existingNode) {
+            // Update existing node
+            updateExistingNode(existingNode, key, value, expandedItems, nodePath);
         } else {
-            // Otherwise, display the key, topic count, and message count with caret arrow
-            li.innerHTML = `<span class="caret">${key} topics: ${topicCount} - Messages: ${keyCount}</span>`;
-        }
+            const li = document.createElement("li");
+            const keyCount = (value && value.hiddenMQTTmsgCnt) ? value.hiddenMQTTmsgCnt : 0;
+            const topicCount = (value && value.hiddenMQTTtopicCnt) ? value.hiddenMQTTtopicCnt : 0;
+            //const isLeafNode = !value || (typeof value === "object" && Object.keys(value).length === 0);
+            const isLeafNode = value && value.hasOwnProperty("hiddenMQTTvalue");
 
-        // Set data-name attribute
-        li.setAttribute("data-name", nodePath);
+            if (isLeafNode) {
+                li.classList.add("leaf-node");
+                li.innerHTML = `<span class="leaf-node">${key} - Messages: ${keyCount}</span>`;
+            } else {
+                li.innerHTML = `<span class="caret">${key} topics: ${topicCount} - Messages: ${keyCount}</span>`;
+            }
 
-        // Add nested ul if it has children
-        if (typeof value === "object") {
-            const nestedUl = document.createElement("ul");
-            nestedUl.className = "nested";
-            li.appendChild(nestedUl);
-            updateTreeView(nestedUl, value, expandedItems, nodePath);
-        }
+            li.setAttribute("data-name", nodePath);
 
-        // Append the list item to the ul
-        ul.appendChild(li);
-
-        // Toggle caret and nested list visibility if expanded
-        if (expandedItems.includes(nodePath)) {
-            li.querySelector('span').classList.add("caret-down");
-            li.querySelector('ul').classList.add("active");
+            if (typeof value === "object" && !isLeafNode) {
+                const nestedUl = document.createElement("ul");
+                nestedUl.className = "nested";
+                li.appendChild(nestedUl);
+                updateTreeView(nestedUl, value, expandedItems, nodePath);
+            }
+            ul.appendChild(li);
+            
+            if (expandedItems.includes(nodePath)) {
+                li.querySelector('span').classList.add("caret-down");
+                li.querySelector('ul').classList.add("active");
+            }
         }
     }
 }
 
 function updateExistingNode(existingNode, key, value, expandedItems, nodePath) {
+    
     if (!existingNode) return;
-
-    const nestedUl = existingNode.querySelector("ul");
+    let nestedUl = existingNode.querySelector("ul");
     if (!nestedUl) {
-        const nestedUl = document.createElement("ul");
-        nestedUl.className = "nested";
+        nestedUl = document.createElement("ul");
         existingNode.appendChild(nestedUl);
+        nestedUl.className = value.hasOwnProperty("hiddenMQTTvalue") ? "leaf-node" : "nested"; // Set class name based on leaf node status
     }
 
     updateTreeView(nestedUl, value, expandedItems, nodePath);
 
-    // Get the topic count for the current node
     const topicCount = (value && value.hiddenMQTTtopicCnt) ? value.hiddenMQTTtopicCnt : 0;
-
-    // Calculate the message count for the current node and its sub-nodes
     const messageCount = countTopicsInSubNodes(value);
-    //const hasChildren = Object.keys(value || {}).length > 0; // Check if it has children
-    //const isLeafNode = !value.hasOwnProperty("hiddenMQTTvalue"); 
-    const isLeafNode = value.hasOwnProperty("hiddenMQTTvalue"); 
-    // Update the HTML content of the span within the existing node
+    //const isLeafNode = value.hasOwnProperty("hiddenMQTTvalue");
+    const isLeafNode = value && value.hasOwnProperty("hiddenMQTTvalue");
     const span = existingNode.querySelector("span");
-    if (span && span.classList.contains("caret")) {
-        // Check if the parent list item has the class "nested active"
+
+    if (span && (span.classList.contains("caret") || span.classList.contains("leaf-node") )) {
         const isParentExpanded = existingNode.querySelector(".nested.active");
         
         if (isParentExpanded) {
-            // If the parent is expanded, don't display counts on the caret
             span.innerHTML = `${key}`;
         } else {
-            // If the parent is not expanded, display counts for the current node
-            //if (isLeafNode) {
-            //    span.innerHTML = `${key} Messages: ${messageCount}`;
-            //} else {
-                //span.innerHTML = `<span>${key} - Messages: ${messageCount}</span>`;
+            if (isLeafNode) {
+                span.innerHTML = `<span class="leaf-node">${key} Messages: ${messageCount}</span>`;
+            } else {
                 span.innerHTML = `<span class="topic-count">${key} topics: ${topicCount}</span> - <span class="message-count">Messages: ${messageCount}</span>`;
-            //}
+            }
         }
     }
 }
 
-
-function countTopicsInSubNodes(data) {
+function countTopicsInSubNodes(data, isLeaf = false) {
     let totalCount = 0;
+    // Determine if the current node is a leaf node
+    const isCurrentNodeLeaf = isLeaf || (!data.children || data.children.length === 0);
+
+    // If the current node is a leaf and has a message count, add it
+    if (isCurrentNodeLeaf && data.hiddenMQTTmsgCnt) {
+        return data.hiddenMQTTmsgCnt;
+    }
+
+    // Iterate through child nodes (if any) to aggregate message counts
     for (const key in data) {
         const value = data[key];
-        if (value && typeof value === "object") {
-            const messageCount = value.hiddenMQTTmsgCnt || 0;
-            totalCount += messageCount;
-            totalCount += countTopicsInSubNodes(value); // Recursively count topics in sub-nodes
-        } else if (key === "hiddenMQTTmsgCnt") {
-            totalCount += value || 0; // Add the message count if it's a leaf node
+        // Skip over any non-object properties or the special 'hiddenMQTTmsgCnt'
+        if (key !== "hiddenMQTTmsgCnt" && typeof value === "object") {
+            totalCount += countTopicsInSubNodes(value);
         }
     }
+
     return totalCount;
 }
+
 
 
 function updateNodeValueDisplay(newData) {
     var selectedNode = document.querySelector("#myUL .selected");
     if (selectedNode) {
-        var nodePath = selectedNode.getAttribute("data-name");
+        var listItem = selectedNode.closest("li"); // Get the closest parent <li> element
+        var nodePath = listItem.getAttribute("data-name"); // Retrieve data-name from the parent <li> element
         var nodeData = getNodeData(nodePath, newData);
         var value = nodeData ? nodeData.hiddenMQTTvalue : null;
         document.getElementById("nodeValueDisplay").textContent = value || "No value available";
@@ -151,7 +156,9 @@ function updateNodeValueDisplay(newData) {
     }
 }
 
+
 function getNodeData(nodePath, data) {
+    if (!nodePath) return null; // Check if nodePath is null or undefined
     var pathParts = nodePath.split('/');
     var node = data;
     for (var i = 0; i < pathParts.length; i++) {
@@ -164,6 +171,7 @@ function getNodeData(nodePath, data) {
     }
     return node;
 }
+
 
 // Function to fetch updated data from the server
 function fetchData() {
@@ -200,48 +208,49 @@ function getNodePath(node) {
     return path.slice(0, -1); // Remove the trailing dot
 }
 
-document.getElementById("myUL").addEventListener("click", function (event) {
+document.getElementById("myUL").addEventListener("click", function(event) {
     var target = event.target;
-    if (target.tagName === "SPAN" && target.classList.contains("caret")) {
-        // Toggle nested list visibility when caret is clicked
-        var nestedList = target.parentElement.querySelector(".nested");
+    var listItem = target.closest("li");
+    var isCaretClicked = target.classList.contains("caret");
+    var isSpanClicked = target.tagName === "SPAN";
+    var isSelected = listItem.classList.contains("selected");
+    if (isCaretClicked || isSpanClicked ) {
+        // Toggle nested list visibility when caret or object is clicked
+        var nestedList = listItem.querySelector(".nested");
         if (nestedList) {
             nestedList.classList.toggle("active");
             target.classList.toggle("caret-down");
             // Update the expanded state for this node
-            updateExpandedState(target.textContent.trim(), nestedList.classList.contains("active"));
+            updateExpandedState(listItem.getAttribute("data-name"), nestedList.classList.contains("active"));
 
             // If collapsing, collapse all child nodes recursively
             if (!nestedList.classList.contains("active")) {
-                nestedList.querySelectorAll(".nested").forEach(function (childList) {
+                nestedList.querySelectorAll(".nested").forEach(function(childList) {
                     childList.classList.remove("active");
                 });
-                nestedList.querySelectorAll(".caret").forEach(function (childCaret) {
+                nestedList.querySelectorAll(".caret").forEach(function(childCaret) {
                     childCaret.classList.remove("caret-down");
                 });
             }
         }
-    } else if (target.tagName === "LI") {
-        // Check if the clicked item is already selected
-        var isSelected = target.classList.contains("selected");
-
-        // Deselect all list items
-        var listItems = document.querySelectorAll("#myUL .selected");
-        listItems.forEach(function (item) {
+    }
+        // Deselect all list items if the clicked item is not already selected
+    if (!isSelected) {
+        document.querySelectorAll("#myUL .selected").forEach(function(item) {
             item.classList.remove("selected");
         });
 
-        // If the clicked item was not already selected, select it
-        if (!isSelected) {
-            target.classList.add("selected");
-            selectedListItem = target;
-        } else {
-            selectedListItem = null;
-        }      
+        // Select the clicked item
+        //listItem.classList.add("selected");
+        listItem.querySelector("span").classList.add("selected"); // Add "selected" class to the span
+        selectedListItem = listItem;
+        
     }
-    var name = target.getAttribute("data-name");
-    callback(name);
+
+    var topicName = listItem.getAttribute("data-name");
+    callback(topicName);
 });
+
 
 // Function to update the expanded state of a node
 function updateExpandedState(nodePath, isExpanded) {
