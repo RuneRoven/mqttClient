@@ -66,6 +66,7 @@ function createNewNode(ul, key, value, nodePath, expandedItems) {
                 li.innerHTML = `<span class="leaf-node">${key} - Messages: ${keyCount}</span>`;
             } else {
                 li.innerHTML = `<span class="caret">${key} topics: ${topicCount} - Messages: ${keyCount}</span>`;
+                li.classList.remove("leaf-node"); // Remove the "leaf-node" class if it's not a leaf node
             }
 
             li.setAttribute("data-name", nodePath);
@@ -85,62 +86,108 @@ function createNewNode(ul, key, value, nodePath, expandedItems) {
         }
     }
 }
+/*
+function updateExistingNode(existingNode, key, value, expandedItems, nodePath) {
+    if (!existingNode) return;
+
+    // Update node content
+    const span = existingNode.querySelector("span");
+    const isLeafNode = value && value.hasOwnProperty("hiddenMQTTleafNode");
+    const messageCount = countMessagesInSubNodes(value);
+
+    if (span) {
+        if (isLeafNode) {
+            span.innerHTML = `<span class="leaf-node">${key} Messages: ${messageCount}</span>`;
+            span.classList.add("leaf-node");
+        } else {
+            const topicCount = (value && value.hiddenMQTTtopicCnt) ? value.hiddenMQTTtopicCnt : 0;
+            span.innerHTML = `<span class="topic-count">${key} topics: ${topicCount}</span> - <span class="message-count">Messages: ${messageCount}</span>`;
+            span.classList.remove("leaf-node");
+        }
+    }
+
+    // Update node class
+    const nestedUl = existingNode.querySelector("ul");
+    if (!nestedUl) {
+        const ul = document.createElement("ul");
+        existingNode.appendChild(ul);
+        nestedUl = ul;
+    }
+
+    //nestedUl.innerHTML = ""; // Clear existing nested content
+    nestedUl.className.remove("leaf-node");
+    nestedUl.className = isLeafNode ? "leaf-node" : "nested"; // Set class name based on leaf node status
+
+    // Recursively update nested nodes
+    if (typeof value === "object" && !isLeafNode) {
+        updateTreeView(nestedUl, value, expandedItems, nodePath);
+    }
+}
+*/
+
 
 function updateExistingNode(existingNode, key, value, expandedItems, nodePath) {
-    
     if (!existingNode) return;
     let nestedUl = existingNode.querySelector("ul");
     if (!nestedUl) {
         nestedUl = document.createElement("ul");
         existingNode.appendChild(nestedUl);
-        nestedUl.className = value.hasOwnProperty("hiddenMQTTleafNode") ? "leaf-node" : "nested"; // Set class name based on leaf node status
+        nestedUl.className = value && value.hasOwnProperty("hiddenMQTTleafNode") ? "leaf-node" : "nested"; // Set class name based on leaf node status
     }
 
-    updateTreeView(nestedUl, value, expandedItems, nodePath);
+    
 
     const topicCount = (value && value.hiddenMQTTtopicCnt) ? value.hiddenMQTTtopicCnt : 0;
-    const messageCount = countTopicsInSubNodes(value);
-    //const isLeafNode = value.hasOwnProperty("hiddenMQTTvalue");
+    const messageCount = countMessagesInSubNodes(value);
     const isLeafNode = value && value.hasOwnProperty("hiddenMQTTleafNode");
     const span = existingNode.querySelector("span");
+    const containsMessage = value && value.hasOwnProperty("hiddenMQTTvalue");
+    if (!isLeafNode) {
+        existingNode.classList.remove("leaf-node");
+    }
 
-    if (span && (span.classList.contains("caret") || span.classList.contains("leaf-node") )) {
+    if (span ) {
         const isParentExpanded = existingNode.querySelector(".nested.active");
-        
         if (isParentExpanded) {
-            span.innerHTML = `${key}`;
+            if (containsMessage){
+                span.innerHTML = `${key} </span> - <span class="message-count">Messages: ${messageCount}</span>`;
+            } else {
+                span.innerHTML = `${key}`;
+            }
         } else {
             if (isLeafNode) {
                 span.innerHTML = `<span class="leaf-node">${key} Messages: ${messageCount}</span>`;
+                span.classList.add("leaf-node");
             } else {
+                nestedUl.innerHTML = ""; // Clear existing nested content
                 span.innerHTML = `<span class="topic-count">${key} topics: ${topicCount}</span> - <span class="message-count">Messages: ${messageCount}</span>`;
+                span.classList.remove("leaf-node");
             }
         }
     }
-}
+updateTreeView(nestedUl, value, expandedItems, nodePath);
+} 
 
-function countTopicsInSubNodes(data, isLeaf = false) {
+
+function countMessagesInSubNodes(data) {
     let totalCount = 0;
-    // Determine if the current node is a leaf node
-    const isCurrentNodeLeaf = isLeaf || (!data.children || data.children.length === 0);
 
-    // If the current node is a leaf and has a message count, add it
-    if (isCurrentNodeLeaf && data.hiddenMQTTmsgCnt) {
-        return data.hiddenMQTTmsgCnt;
+    // If the current node has a message count, add it
+    if (data.hiddenMQTTmsgCnt) {
+        totalCount += data.hiddenMQTTmsgCnt;
     }
 
     // Iterate through child nodes (if any) to aggregate message counts
     for (const key in data) {
         const value = data[key];
-        // Skip over any non-object properties or the special 'hiddenMQTTmsgCnt'
-        if (key !== "hiddenMQTTmsgCnt" && typeof value === "object") {
-            totalCount += countTopicsInSubNodes(value);
+        // Skip over special properties like 'hiddenMQTTmsgCnt' and 'hiddenMQTTleafNode'
+        if (key !== "hiddenMQTTmsgCnt" && key !== "hiddenMQTTleafNode" && typeof value === "object") {
+            totalCount += countMessagesInSubNodes(value);
         }
     }
 
     return totalCount;
 }
-
 
 
 function updateNodeValueDisplay(newData) {
@@ -194,6 +241,22 @@ function getExpandedItems(ul) {
         }
     });
     return expandedItems;
+}
+
+// Function to update the expanded state of a node
+function updateExpandedState(nodePath, isExpanded) {
+    var expandedItems = JSON.parse(localStorage.getItem("expandedItems")) || [];
+    if (isExpanded) {
+        // Add the node path to the expanded items list if it's expanded
+        if (!expandedItems.includes(nodePath)) {
+            expandedItems.push(nodePath);
+        }
+    } else {
+        // Remove the node path from the expanded items list if it's collapsed
+        expandedItems = expandedItems.filter(item => item !== nodePath);
+    }
+    // Store the updated expanded state in localStorage
+    localStorage.setItem("expandedItems", JSON.stringify(expandedItems));
 }
 
 // Function to get the hierarchical path of a node
@@ -251,22 +314,6 @@ document.getElementById("myUL").addEventListener("click", function(event) {
     callback(topicName);
 });
 
-
-// Function to update the expanded state of a node
-function updateExpandedState(nodePath, isExpanded) {
-    var expandedItems = JSON.parse(localStorage.getItem("expandedItems")) || [];
-    if (isExpanded) {
-        // Add the node path to the expanded items list if it's expanded
-        if (!expandedItems.includes(nodePath)) {
-            expandedItems.push(nodePath);
-        }
-    } else {
-        // Remove the node path from the expanded items list if it's collapsed
-        expandedItems = expandedItems.filter(item => item !== nodePath);
-    }
-    // Store the updated expanded state in localStorage
-    localStorage.setItem("expandedItems", JSON.stringify(expandedItems));
-}
 // Define callback function
 function callback(name) {
     

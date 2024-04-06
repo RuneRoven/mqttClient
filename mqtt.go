@@ -133,9 +133,6 @@ func (mc *MQTTClient) listenMessages() {
 			select {
 			case msg := <-mc.messageChannel:
 				topic := <-mc.topicChannel
-				if topic != "test/new/kitos" && topic != "test/old/disco" {
-					log.Println("topic: ", topic, " msg: ", msg)
-				}
 				mc.messageHierarchyMu.Lock()
 				// Parse the topic into levels
 				// Ensure the topic is non-empty and does not contain only delimiters.
@@ -144,14 +141,16 @@ func (mc *MQTTClient) listenMessages() {
 					return
 				}
 				topicLevels := strings.Split(topic, "/")
+				//log.Println("original topic: ", topic)
+				//log.Println("splitted topic  levels: ", topicLevels)
 				// Create or get the existing hierarchy
 				mc.getOrCreateHierarchy(topicLevels, msg)
 				mc.messageHierarchyMu.Unlock()
 				UpdateStableHierarchy(mc.messageHierarchy)
-				cacheMutex.Lock()
-				messageCache[topic] = string(msg)
-				cacheMutex.Unlock()
-				latestMessage = string(msg)
+				//cacheMutex.Lock()
+				//messageCache[topic] = string(msg)
+				//cacheMutex.Unlock()
+				//latestMessage = string(msg)
 
 			default:
 				// No message received, continue
@@ -166,141 +165,134 @@ func (mc *MQTTClient) onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	mc.topicChannel <- string(msg.Topic())
 }
 func (mc *MQTTClient) getOrCreateHierarchy(topicLevels []string, msg string) MessageHierarchy {
-	hierarchy := mc.messageHierarchy
-
-	// Keep track of the current hierarchy level
-	currentLevel := hierarchy
-
-	// Flag to check if a new topic is created
+	currentLevel := &mc.messageHierarchy
+	var leafNodeChanged = false
+	var parentLevel *MessageHierarchy // Track the parent level to potentially remove leaf status
 	newTopicCreated := false
+	updateTopics := false // Flag to track if updateAncestorTopicCounts should be called
 
-	// Flag to check if the current level is a leaf-node
-	isLeafNode := false
-
-	// Keep track of the previous level
-	var prevLevel MessageHierarchy
-
-	// Traverse the hierarchy based on the topic levels
 	for i, level := range topicLevels {
-		// Check if the current level exists in the hierarchy
-		if currentLevel == nil {
-			// Log an error and break the loop if the current level is nil
+		if *currentLevel == nil {
 			log.Println("Error: Nil map encountered at level", i)
 			break
 		}
 
-		// If this is the leaf node level
-		if i == len(topicLevels)-1 {
-			// Check if a leaf-node already exists for the topic at a higher level
-			if val, ok := currentLevel["hiddenMQTTleafNode"].(string); ok {
-				// If the value is a string, skip the logic
-			} else if !ok || val != "true" {
-				// If no leaf-node exists for the topic at a higher level or if it's not "true",
-				// mark the current level as a leaf-node
-				isLeafNode = true
-			}
-		}
-
-		// Check if the current level has a leaf-node
-		if i < len(topicLevels)-1 && !isLeafNode {
-			if val, ok := currentLevel["hiddenMQTTleafNode"].(string); ok {
-				// If the value is a string, skip the logic
-			} else if !ok || val == "true" {
-				// If a leaf-node exists at a higher level or if it's "true",
-				// mark the current level as not a leaf-node
-				isLeafNode = false
-			}
-		}
-
-		if _, ok := currentLevel[level]; !ok {
-			// If not, create a new level
-			currentLevel[level] = make(MessageHierarchy)
+		if _, exists := (*currentLevel)[level]; !exists {
+			(*currentLevel)[level] = make(MessageHierarchy) // Create new level if doesn't exist
 			newTopicCreated = true
 		}
 
-		// Move to the next level in the hierarchy
-		prevLevel = currentLevel
-		currentLevel = currentLevel[level].(MessageHierarchy)
-	}
-
-	// If this level is a leaf-node
-	if isLeafNode {
-		// Create a new leaf node called "value" and store the message there
-		if _, ok := currentLevel["hiddenMQTTmsgCnt"]; !ok {
-			// Initialize the message count if it doesn't exist
-			currentLevel["hiddenMQTTmsgCnt"] = 0
+		// If not the last level, update parentLevel to current level before moving deeper
+		if i < len(topicLevels)-1 {
+			parentLevel = currentLevel
 		}
 
-		// Increment the message count for this topic
-		currentLevel["hiddenMQTTmsgCnt"] = currentLevel["hiddenMQTTmsgCnt"].(int) + 1
+		nextLevel := (*currentLevel)[level].(MessageHierarchy)
+		currentLevel = &nextLevel // Move to the next level
 
-		// Store the message value for leaf nodes
-		currentLevel["hiddenMQTTvalue"] = msg
-
-		// Mark as leaf node
-		currentLevel["hiddenMQTTleafNode"] = "true"
-	} else {
-		// Update the message value for non-leaf nodes if not already set
-		if _, ok := currentLevel["hiddenMQTTvalue"]; !ok {
-			currentLevel["hiddenMQTTvalue"] = msg
+		// Check if it's a leaf node (no children except for the message count and value)
+		if i == len(topicLevels)-1 && len(nextLevel) == 0 {
+			// At the deepest level, mark as leaf node
+			(*currentLevel)["hiddenMQTTleafNode"] = "true"
 		}
 	}
 
-	// If a new topic is created, update topic count for all ancestor nodes
-	if newTopicCreated {
-		mc.updateAncestorTopicCounts(hierarchy, topicLevels)
+	// At the deepest level now, where message is meant to be stored
+	if _, ok := (*currentLevel)["hiddenMQTTmsgCnt"]; !ok {
+		(*currentLevel)["hiddenMQTTmsgCnt"] = 0
+	}
+	// Check if the current node is a not a leaf node and does not have a value
+	if _, isLeaf := (*currentLevel)["hiddenMQTTleafNode"]; !isLeaf {
+		if _, valueExists := (*currentLevel)["hiddenMQTTvalue"]; !valueExists {
+			updateTopics = true
+		}
+	}
+	(*currentLevel)["hiddenMQTTmsgCnt"] = (*currentLevel)["hiddenMQTTmsgCnt"].(int) + 1
+	(*currentLevel)["hiddenMQTTvalue"] = msg
+
+	// If there was a parent node, it's no longer a leaf
+	if parentLevel != nil && len(*parentLevel) > 1 {
+		for key := range *parentLevel {
+			if subLevel, ok := (*parentLevel)[key].(MessageHierarchy); ok {
+				if _, leafExists := subLevel["hiddenMQTTleafNode"]; leafExists {
+					// Only remove if it's not the current level being processed
+					if &subLevel != currentLevel {
+						//log.Println("leaf-node changed")
+						leafNodeChanged = true
+						delete(subLevel, "hiddenMQTTleafNode")
+					}
+				}
+			}
+		}
 	}
 
-	// Remove leaf node from its previous level if moved
-	if prevLevel != nil && &prevLevel != &currentLevel {
-		delete(prevLevel, "hiddenMQTTleafNode")
+	// If either a new topic was created or leafNodeChanged, update topic counts
+	if newTopicCreated || leafNodeChanged || updateTopics {
+		//log.Println("topic  levels: ", topicLevels)
+		mc.updateAncestorTopicCounts(mc.messageHierarchy, topicLevels)
+		leafNodeChanged = false
 	}
 
 	return mc.messageHierarchy
 }
 
 func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topicLevels []string) {
-	currentLevel := hierarchy
+	// Initialize current parent node
+	parentNode := mc.messageHierarchy
 
 	// Traverse the hierarchy upwards
-	for _, level := range topicLevels {
-		// If the current level has a "hiddenMQTTtopicCnt", increment it
-		if _, ok := currentLevel["hiddenMQTTtopicCnt"].(int); ok {
-			currentLevel["hiddenMQTTtopicCnt"] = currentLevel["hiddenMQTTtopicCnt"].(int) + 1
-		} else {
-			// Otherwise, create it with the value 1
-			currentLevel["hiddenMQTTtopicCnt"] = 1
+	for i, _ := range topicLevels {
+		// Get the current level
+		currentLevel := hierarchy
+		for j := 0; j <= i; j++ {
+			currentLevel = currentLevel[topicLevels[j]].(MessageHierarchy)
 		}
 
-		// Move to the parent level
-		currentLevel = currentLevel[level].(MessageHierarchy)
+		// If the current level has a "hiddenMQTTtopicCnt", increment it
+		// If the current level is a leaf node, set the topic count to 1
+		if _, isLeafNode := currentLevel["hiddenMQTTleafNode"].(string); isLeafNode {
+			currentLevel["hiddenMQTTtopicCnt"] = 1
+		} else {
+			// If the current level is not a leaf node, check if the topic count exists
+			if _, ok := currentLevel["hiddenMQTTtopicCnt"].(int); ok {
+				// Increment the topic count
+				currentLevel["hiddenMQTTtopicCnt"] = currentLevel["hiddenMQTTtopicCnt"].(int) + 1
+			} else {
+				// Otherwise, create it with the value 1
+				currentLevel["hiddenMQTTtopicCnt"] = 1
+			}
+		}
+
+		// Debug log
+		//log.Println("Updated topic count for level", level, "to", currentLevel["hiddenMQTTtopicCnt"])
+
+		// Update the parent node for the next iteration
+		if i > 0 {
+			parentNode = parentNode[topicLevels[i-1]].(MessageHierarchy)
+		}
 	}
 }
 
 /*
-// UpdateStableHierarchy updates the stable hierarchy with the latest MQTT data
+	func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topicLevels []string) {
+		currentLevel := hierarchy
 
-	func UpdateStableHierarchy(newHierarchy MessageHierarchy) {
-		stableHierarchyMutex.Lock()
-		defer stableHierarchyMutex.Unlock()
+		// Traverse the hierarchy upwards
+		for _, level := range topicLevels {
+			// If the current level has a "hiddenMQTTtopicCnt", increment it
+			if _, ok := currentLevel["hiddenMQTTtopicCnt"].(int); ok {
+				currentLevel["hiddenMQTTtopicCnt"] = currentLevel["hiddenMQTTtopicCnt"].(int) + 1
+			} else {
+				// Otherwise, create it with the value 1
+				currentLevel["hiddenMQTTtopicCnt"] = 1
+			}
 
-		// Update stable hierarchy with new data
-		for key, value := range newHierarchy {
-			stableHierarchy[key] = value
+			// Debug log
+			log.Println("Updated topic count for level", level, "to", currentLevel["hiddenMQTTtopicCnt"])
+
+			// Move to the parent level
+			currentLevel = currentLevel[level].(MessageHierarchy)
 		}
-	}
-
-// GetStableHierarchy returns a copy of the stable hierarchy for browsing
-
-	func GetStableHierarchy() MessageHierarchy {
-		stableHierarchyMutex.RLock()
-		defer stableHierarchyMutex.RUnlock()
-		// Make a copy of the stable hierarchy to prevent concurrent modification
-		copiedHierarchy := make(MessageHierarchy)
-		for key, value := range stableHierarchy {
-			copiedHierarchy[key] = value
-		}
-		return copiedHierarchy
 	}
 */
 func GetStableHierarchy() MessageHierarchy {
