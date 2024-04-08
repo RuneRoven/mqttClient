@@ -1,6 +1,7 @@
-var filterTypeCheckbox = document.getElementById("filterType");
+//var filterTypeCheckbox = document.getElementById("filterType");
 var filterActive = false;
 var filterValue = document.getElementById("filterInput").value.toLowerCase();
+
 
 document.getElementById("collapseButton").addEventListener("click", function () {
     collapseList();
@@ -217,7 +218,8 @@ function runFilter() {
     // Get the filter input value
     filterValue = document.getElementById("filterInput").value.toLowerCase();
     // Filter the tree based on the input text
-    if (filterTypeCheckbox.checked) {
+    var filterTypeCheckbox = !document.getElementById("filterSwitch").checked;
+    if (filterTypeCheckbox) {
         filterTreeHighLight(filterValue);
         filterActive = true;
     } else {

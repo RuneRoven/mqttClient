@@ -7,7 +7,7 @@ function updateList(data) {
     var newData = JSON.parse(data);
 
     // Update the tree view based on the new data
-    
+
     updateTreeView(myUL, newData, expandedItems);
 }
 // Function to update the tree view
@@ -35,8 +35,8 @@ function createOrUpdateNode(ul, key, value, nodePath, expandedItems, existingNod
     var newNode = false;
     var span;
     const isLeafNode = value?.hasOwnProperty("hiddenMQTTleafNode");
-    if (!existingNode) {    
-        //console.log("new node at path: ", nodePath, " key: ", key, " existing: ", existingNode);
+    const isMarkedAsLeafNode = existingNode && existingNode.querySelector("span").classList.contains("leaf-node");
+    if (!existingNode) {
         li = document.createElement("li");
         li.setAttribute("data-name", nodePath);
         ul.appendChild(li);
@@ -44,56 +44,60 @@ function createOrUpdateNode(ul, key, value, nodePath, expandedItems, existingNod
     } else {
         span = existingNode.querySelector("span");
     }
-    
+    if (isMarkedAsLeafNode && !isLeafNode) {
+        // If current list element is marked as leaf-node, and leaf-node has changed, remove the element to create new structure
+        existingNode.querySelector("span")?.parentNode.removeChild(existingNode.querySelector("span"));
+    }
     // Common update or create logic
     const keyCount = value?.hiddenMQTTmsgCnt || 0;
     const topicCount = value?.hiddenMQTTtopicCnt || 0;
-    
+
     const messageCount = countMessagesInSubNodes(value);
     var leafTxt = `${key} { Messages: ${messageCount} }`;
     var nodeTxt = `${key} { Topics: ${topicCount} - Messages: ${messageCount} }`;
     //var leafTxt = `<span>${key} { Messages: ${messageCount} }</span>`;
     //var nodeTxt = `<span>${key} { Topics: ${topicCount} - Messages: ${messageCount} }</span>`;
     if (isLeafNode) {
-        if (newNode){
+        if (newNode) {
             li.innerHTML = `<span class="leaf-node">${leafTxt}</span>`;
         } else {
             span.innerHTML = `${leafTxt}`;
         }
     } else {
-        if (newNode){
+        if (newNode) {
             li.innerHTML = `<span class="caret">${nodeTxt}</span>`;
+
         } else {
             span.innerHTML = `${nodeTxt}`;
         }
         if (typeof value === "object" && !Array.isArray(value)) {
-    let nestedUl;
-    if (newNode) {
-        // For new nodes, create a new 'ul' element
-        nestedUl = document.createElement("ul");
-        nestedUl.className = "nested";
-        li.appendChild(nestedUl);
-    } else {
-        // For existing nodes, attempt to find the existing 'ul' or create a new one if not found
-        nestedUl = span.nextSibling instanceof HTMLUListElement ? span.nextSibling : document.createElement("ul");
-        if (!span.nextSibling) {
-            li.appendChild(nestedUl); // Append only if it was newly created
+            let nestedUl;
+            if (newNode) {
+                // For new nodes, create a new 'ul' element
+                nestedUl = document.createElement("ul");
+                nestedUl.className = "nested";
+                li.appendChild(nestedUl);
+            } else {
+                // For existing nodes, attempt to find the existing 'ul' or create a new one if not found
+                nestedUl = span.nextSibling instanceof HTMLUListElement ? span.nextSibling : document.createElement("ul");
+                if (!span.nextSibling) {
+                    li.appendChild(nestedUl); // Append only if it was newly created
+                }
+            }
+            // Recursive call to update or add child nodes
+            updateTreeView(nestedUl, value, expandedItems, nodePath, existingNodes); // Make sure to pass existingNodes if it's part of the solution
         }
     }
-    
-    // Recursive call to update or add child nodes
-    updateTreeView(nestedUl, value, expandedItems, nodePath, existingNodes); // Make sure to pass existingNodes if it's part of the solution
 }
-    }
 /*
-    if (expandedItems.includes(nodePath)) {
-        li.querySelector('span').classList.add("caret-down");
-        const ul = li.querySelector('ul');
-        if (ul) {
-            ul.classList.add("active");
-        }
-    }*/
-}
+        if (expandedItems.includes(nodePath)) {
+            li.querySelector('span').classList.add("caret-down");
+            const ul = li.querySelector('ul');
+            if (ul) {
+                ul.classList.add("active");
+            }
+        }*/
+
 
 function getExistingNodes(ul) {
     const existingNodes = new Map();
@@ -103,7 +107,7 @@ function getExistingNodes(ul) {
             const key = span.textContent.trim().split(" {")[0];
             const nodePath = item.getAttribute("data-name");
             existingNodes.set(nodePath, item);
-           // console.log(nodePath, item);
+            // console.log(nodePath, item);
         }
     });
     return existingNodes;
@@ -212,13 +216,13 @@ function getNodePath(node) {
     return path.slice(0, -1); // Remove the trailing dot
 }
 
-document.getElementById("myUL").addEventListener("click", function(event) {
+document.getElementById("myUL").addEventListener("click", function (event) {
     var target = event.target;
     var listItem = target.closest("li");
     var isCaretClicked = target.classList.contains("caret");
     var isSpanClicked = target.tagName === "SPAN";
     var isSelected = listItem.classList.contains("selected");
-    if (isCaretClicked || isSpanClicked ) {
+    if (isCaretClicked || isSpanClicked) {
         // Toggle nested list visibility when caret or object is clicked
         var nestedList = listItem.querySelector(".nested");
         if (nestedList) {
@@ -229,18 +233,18 @@ document.getElementById("myUL").addEventListener("click", function(event) {
 
             // If collapsing, collapse all child nodes recursively
             if (!nestedList.classList.contains("active")) {
-                nestedList.querySelectorAll(".nested").forEach(function(childList) {
+                nestedList.querySelectorAll(".nested").forEach(function (childList) {
                     childList.classList.remove("active");
                 });
-                nestedList.querySelectorAll(".caret").forEach(function(childCaret) {
+                nestedList.querySelectorAll(".caret").forEach(function (childCaret) {
                     childCaret.classList.remove("caret-down");
                 });
             }
         }
     }
-        // Deselect all list items if the clicked item is not already selected
+    // Deselect all list items if the clicked item is not already selected
     if (!isSelected) {
-        document.querySelectorAll("#myUL .selected").forEach(function(item) {
+        document.querySelectorAll("#myUL .selected").forEach(function (item) {
             item.classList.remove("selected");
         });
 
@@ -248,7 +252,7 @@ document.getElementById("myUL").addEventListener("click", function(event) {
         //listItem.classList.add("selected");
         listItem.querySelector("span").classList.add("selected"); // Add "selected" class to the span
         selectedListItem = listItem;
-        
+
     }
 
     var topicName = listItem.getAttribute("data-name");
@@ -257,7 +261,7 @@ document.getElementById("myUL").addEventListener("click", function(event) {
 
 // Define callback function
 function callback(name) {
-    
+
     document.getElementById("selectedTopic").textContent = name;
     // Log or use the path as needed
     console.log("Selected path:", name);

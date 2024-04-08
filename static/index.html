@@ -4,18 +4,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- <style src="listStyle.css"></style> -->
 <link rel="stylesheet" type="text/css" href="listStyle.css">
-<button id="collapseButton">Collapse All</button>
-<input type="text" id="filterInput" placeholder="Type to filter...">
-<button id="filterButton">Filter</button>
-<button id="resetButton">Reset</button>
-<label for="filterType">Highlight text on search</label>
-<input type="checkbox" id="filterType">
+<link rel="stylesheet" type="text/css" href="buttons.css">
+<h2>MQTT client</h2>
+  A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.
+  <br>Click on the arrow(s) to open or close the tree branches.
+
 </head>
 <body>
-  <h2>MQTT client</h2>
-  <p>A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.</p>
-  <p>Click on the arrow(s) to open or close the tree branches.</p>
-  <br>
+  <div class="headerContainer">
+    <div class="headerLeft">
+      <input type="text" id="filterInput" placeholder="Type to filter..." class="inputText">
+     
+      
+      <div class="filterButton">
+        <span style="margin-right: 5px"><h4>Highlight<br>when search</h4></span>
+        <label class="switch">
+          <input type="checkbox" id="filterSwitch">
+          <span class="slider round"></span>
+        </label>
+        <span style="margin-left: 5px"><h4>Filter out<br>when search</h4></span>
+        <button id="collapseButton" class="button" style="margin-left: 5px">Collapse All</button>
+      </div>
+      
+    </div>
+    <div class="headerRight">
+      <!-- Element 2 -->
+      <button id="filterButton" class="button">Filter</button>
+      <button id="resetButton" class="button">Reset</button>
+      
+    </div>
+  </div>
   <div class="container">
     
     <div class="list">
