@@ -2,24 +2,31 @@ package main
 
 import (
 	"encoding/json"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
-	"strings"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 )
 
 var (
 	//tpl           = template.Must(template.ParseFiles("index.html"))
-	messageCache         map[string]string
-	latestMessage        string
-	cacheMutex           sync.RWMutex
+	messageCache map[string]string
+	//latestMessage        string
+	//cacheMutex           sync.RWMutex
 	stableHierarchyMutex sync.RWMutex
+	connections          []*websocket.Conn
+	connectionsMu        sync.Mutex
+	upgrader             = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 )
 var stableHierarchy = make(MessageHierarchy)
 
@@ -46,11 +53,12 @@ func main() {
 	// Serve static files from the "static" directory
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
-
+	http.HandleFunc("/getWSport", getWSPort)
+	http.HandleFunc("/ws", handleWebSocket)
 	// Define your API endpoints
-	http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
-		updateData(w, r, mqttClient)
-	})
+	//http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
+	//	updateData(w, r, mqttClient)
+	//})
 
 	http.ListenAndServe(":"+port, nil)
 
@@ -59,52 +67,138 @@ func main() {
 	signal.Notify(sig, os.Interrupt)
 	<-sig
 }
-
-// generateHTML generates HTML for the given hierarchy
-func generateHTML(hierarchy MessageHierarchy) (template.HTML, error) {
-	var buf strings.Builder
-
-	// Get sorted keys ignoring case
-	keys := make([]string, 0, len(hierarchy))
-	for key := range hierarchy {
-		keys = append(keys, key)
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Failed to upgrade connection:", err)
+		return
 	}
-	sort.Slice(keys, func(i, j int) bool {
-		return strings.ToLower(keys[i]) < strings.ToLower(keys[j])
-	})
+	defer conn.Close()
 
-	for _, key := range keys {
-		value := hierarchy[key]
+	// Add the new connection to the list
+	connectionsMu.Lock()
+	connections = append(connections, conn)
+	connectionsMu.Unlock()
 
-		// Opening list item tag
-		buf.WriteString("<li>")
+	for {
+		messageType, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("Error reading message:", err)
+			break
+		}
+		log.Printf("Received message: %s\n", message)
 
-		// Add topic name
-		buf.WriteString("<span class=\"caret\">" + key + "</span>")
-
-		// Check if the value is a sub-hierarchy
-		subHierarchy, ok := value.(MessageHierarchy)
-		if ok {
-			// If it's a sub-hierarchy, generate HTML for it recursively
-			subHTML, err := generateHTML(subHierarchy)
-			if err != nil {
-				return "", err
-			}
-			// Only add the generated HTML if it's not empty
-			if subHTML != "" {
-				buf.WriteString("<ul class=\"nested\">" + string(subHTML) + "</ul>")
-			}
-		} else {
-			// If it's a leaf node, add the value as a list item
-			buf.WriteString("<ul class=\"nested\"><li>" + value.(string) + "</li></ul>")
+		if string(message) == "disconnect" {
+			// Close the WebSocket connection
+			log.Println("Disconnecting client")
+			break
+		}
+		// Check if the message is "connect"
+		if string(message) == "connect" {
+			// Call the connect function
+			log.Println("connect using websocket")
 		}
 
-		// Closing list item tag
-		buf.WriteString("</li>")
+		// Echo message back to client
+		err = conn.WriteMessage(messageType, message)
+		if err != nil {
+			log.Println("Error writing message:", err)
+			break
+		}
 	}
 
-	return template.HTML(buf.String()), nil
+	// Handle disconnection: remove the closed connection from the list
+	connectionsMu.Lock()
+	defer connectionsMu.Unlock()
+	for i, c := range connections {
+		if c == conn {
+			connections = append(connections[:i], connections[i+1:]...)
+			break
+		}
+	}
 }
+
+/*
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Failed to upgrade connection:", err)
+		return
+	}
+	defer conn.Close()
+
+	for {
+		messageType, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("Error reading message:", err)
+			break
+		}
+		log.Printf("Received message: %s\n", message)
+
+		// Check if the message is "connect"
+		if string(message) == "connect" {
+			// Call the connect function
+			log.Println("connect using websocket")
+		}
+
+		// Echo message back to client
+		err = conn.WriteMessage(messageType, message)
+		if err != nil {
+			log.Println("Error writing message:", err)
+			break
+		}
+	}
+}
+*/
+// Function to send data to all connected clients
+func sendDataToClients(data []byte) {
+	connectionsMu.Lock()
+	defer connectionsMu.Unlock()
+
+	for _, conn := range connections {
+		err := conn.WriteMessage(websocket.TextMessage, data)
+		if err != nil {
+			log.Println("Error writing message to client:", err)
+		}
+	}
+}
+
+func updateData(mqttClient *MQTTClient) {
+	// Lock access to messageHierarchy
+	mqttClient.messageHierarchyMu.Lock()
+	defer mqttClient.messageHierarchyMu.Unlock()
+
+	// Prepare the data
+	data := GetStableHierarchy()
+
+	// Convert the data to JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Println("Failed to marshal JSON:", err)
+		return
+	}
+
+	// Send data to all connected clients
+	sendDataToClients(jsonData)
+}
+func getWSPort(w http.ResponseWriter, r *http.Request) {
+	// load environment file
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Error loading .env file")
+	}
+	// set the webserver port
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
+
+	// Write the port value as JSON response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"port": port})
+}
+
+/*
 func updateData(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) {
 	// Lock access to messageHierarchy
 	mqttClient.messageHierarchyMu.Lock()
@@ -130,27 +224,4 @@ func updateData(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) 
 		return
 	}
 }
-
-func productListHandler(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) {
-	// Lock access to messageHierarchy
-	mqttClient.messageHierarchyMu.Lock()
-	defer mqttClient.messageHierarchyMu.Unlock()
-
-	// Prepare the data for the template
-	data := GetStableHierarchy()
-	//htmlData, _ := generateHTML(mqttClient.messageHierarchy)
-	htmlData, _ := generateHTML(data)
-	// Parse the HTML file
-	tmpl, err := template.ParseFiles("file.html")
-	if err != nil {
-		http.Error(w, "Failed to parse HTML file", http.StatusInternalServerError)
-		return
-	}
-
-	// Execute the template with the data
-	err = tmpl.Execute(w, htmlData)
-	if err != nil {
-		http.Error(w, "Failed to execute template"+err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
+*/

@@ -14,11 +14,27 @@
   height: 200px;
   padding: 5px;
   overflow: auto;
-  word-wrap: break-word;
+  /*word-wrap: break-word;*/
+  white-space: pre-wrap;
   border: 2px solid black;
   border-radius: 10px;
+  overflow-wrap: break-word;
 }
-
+.key {
+  color: red;
+}
+.string {
+  color: green;
+}
+.number {
+  color: darkorange;
+}
+.boolean {
+  color: blue;
+}
+.null {
+  color: magenta;
+}
 .selectedTopic {
   width: 400px;
   height: 100px;

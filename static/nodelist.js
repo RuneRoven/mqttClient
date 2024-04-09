@@ -1,4 +1,58 @@
+let socket; // Declare socket variable in a higher scope
 
+// Function to get WebSocket port from the backend
+function getWebSocketPort() {
+    return fetch("/getWSport")
+        .then(response => response.json())
+        .then(data => data.port);
+}
+
+// Function to establish WebSocket connection
+function setupWebSocket() {
+    return getWebSocketPort().then(port => {
+        // Create WebSocket connection
+        socket = new WebSocket(`ws://localhost:${port}/ws`);
+        
+        // Return a Promise that resolves when the WebSocket connection is opened
+        return new Promise((resolve, reject) => {
+            socket.addEventListener('open', () => {
+                // WebSocket connection opened successfully
+                console.log("WebSocket connection established successfully.");
+                
+                // Add event listener for incoming messages
+                socket.addEventListener("message", function(event) {
+                    updateList(event.data); // Update data in frontend
+                });
+                
+                resolve(socket);
+            });
+            
+            socket.addEventListener('error', (error) => {
+                // Error occurred while establishing WebSocket connection
+                reject(error);
+            });
+        });
+    });
+}
+
+// Run the setupWebSocket function when the page loads
+window.onload = function() {
+    setupWebSocket().catch(error => {
+        // Error occurred while setting up WebSocket connection
+        console.error("Error establishing WebSocket connection:", error);
+    });
+};
+
+
+//const socket = new WebSocket("ws://localhost:3000/ws");
+window.addEventListener('beforeunload', function() {
+    socket.send('disconnect'); // send disconnect to backend when window closes
+});
+// Handle messages received from the server
+/*
+socket.addEventListener("message", function(event) {
+    updateList(event.data) // update data in frontend
+});*/
 // Function to update the list with fetched data
 function updateList(data) {
     var myUL = document.getElementById("myUL");
@@ -142,12 +196,41 @@ function updateNodeValueDisplay(newData) {
         var nodePath = listItem.getAttribute("data-name"); // Retrieve data-name from the parent <li> element
         var nodeData = getNodeData(nodePath, newData);
         var value = nodeData ? nodeData.hiddenMQTTvalue : null;
-        document.getElementById("nodeValueDisplay").textContent = value || "No value available";
+        //var formattedJsonString = JSON.stringify(value, null, 2);
+        //var ne = JSON.parse(formattedJsonString);
+        //document.getElementById("nodeValueDisplay").textContent = value || "No value available";
+        //var indentedJsonString = formattedJsonString.replace(/ /g, "&nbsp;").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;");
+        if (value){
+            document.getElementById("nodeValueDisplay").innerHTML = syntaxHighlight(value);
+        } else {
+            document.getElementById("nodeValueDisplay").innerHTML = "No value available";
+        }
     } else {
         document.getElementById("nodeValueDisplay").textContent = "No node selected";
     }
 }
 
+function syntaxHighlight(json) {
+    if (typeof json != 'string') {
+        json = JSON.stringify(json, undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+        var cls = 'number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'key';
+            } else {
+                cls = 'string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'boolean';
+        } else if (/null/.test(match)) {
+            cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
+}
 
 function getNodeData(nodePath, data) {
     if (!nodePath) return null; // Check if nodePath is null or undefined
@@ -174,7 +257,7 @@ function fetchData() {
 }
 
 // Automatically fetch updated data every second
-setInterval(fetchData, 1000);
+//setInterval(fetchData, 1000);
 
 // Function to get the expanded state of tree nodes
 function getExpandedItems(ul) {

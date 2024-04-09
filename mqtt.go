@@ -141,16 +141,10 @@ func (mc *MQTTClient) listenMessages() {
 					return
 				}
 				topicLevels := strings.Split(topic, "/")
-				//log.Println("original topic: ", topic)
-				//log.Println("splitted topic  levels: ", topicLevels)
-				// Create or get the existing hierarchy
 				mc.getOrCreateHierarchy(topicLevels, msg)
 				mc.messageHierarchyMu.Unlock()
 				UpdateStableHierarchy(mc.messageHierarchy)
-				//cacheMutex.Lock()
-				//messageCache[topic] = string(msg)
-				//cacheMutex.Unlock()
-				//latestMessage = string(msg)
+				updateData(mc)
 
 			default:
 				// No message received, continue

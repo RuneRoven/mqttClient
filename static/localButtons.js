@@ -246,7 +246,20 @@ document.getElementById("resetButton").addEventListener("click", function () {
     resetFilter();
     collapseList();
 });
+document.getElementById("connectButton").addEventListener("click", function() {
+    // Establish WebSocket connection to backend
+    const socket = new WebSocket("ws://localhost:3000/ws");
 
+    // Send "connect" command to backend
+    socket.addEventListener("open", function(event) {
+        socket.send("connect");
+    });
+
+    // Log messages received from backend
+    socket.addEventListener("message", function(event) {
+        console.log("Message from server:", event.data);
+    });
+});
 //document.onload(){
  //   console.log("hello")
 //};
