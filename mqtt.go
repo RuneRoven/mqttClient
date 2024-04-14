@@ -257,9 +257,6 @@ func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topi
 			}
 		}
 
-		// Debug log
-		//log.Println("Updated topic count for level", level, "to", currentLevel["hiddenMQTTtopicCnt"])
-
 		// Update the parent node for the next iteration
 		if i > 0 {
 			parentNode = parentNode[topicLevels[i-1]].(MessageHierarchy)
@@ -267,28 +264,6 @@ func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topi
 	}
 }
 
-/*
-	func (mc *MQTTClient) updateAncestorTopicCounts(hierarchy MessageHierarchy, topicLevels []string) {
-		currentLevel := hierarchy
-
-		// Traverse the hierarchy upwards
-		for _, level := range topicLevels {
-			// If the current level has a "hiddenMQTTtopicCnt", increment it
-			if _, ok := currentLevel["hiddenMQTTtopicCnt"].(int); ok {
-				currentLevel["hiddenMQTTtopicCnt"] = currentLevel["hiddenMQTTtopicCnt"].(int) + 1
-			} else {
-				// Otherwise, create it with the value 1
-				currentLevel["hiddenMQTTtopicCnt"] = 1
-			}
-
-			// Debug log
-			log.Println("Updated topic count for level", level, "to", currentLevel["hiddenMQTTtopicCnt"])
-
-			// Move to the parent level
-			currentLevel = currentLevel[level].(MessageHierarchy)
-		}
-	}
-*/
 func GetStableHierarchy() MessageHierarchy {
 	stableHierarchyMutex.RLock()
 	defer stableHierarchyMutex.RUnlock()

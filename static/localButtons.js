@@ -1,8 +1,11 @@
 //var filterTypeCheckbox = document.getElementById("filterType");
 var filterActive = false;
 var filterValue = document.getElementById("filterInput").value.toLowerCase();
-
-
+var runFilterOnce = false;
+var filteredItems = {
+    items: [],
+    parents: []
+};
 document.getElementById("collapseButton").addEventListener("click", function () {
     collapseList();
 });
@@ -16,16 +19,52 @@ function collapseList() {
         caretIcon.classList.remove("caret-down");
     });
 }
-//filter with highlight
-function expandBranchHighlight(item) {
-    var nestedList = item.querySelector(".nested");
-    if (nestedList && !nestedList.classList.contains("active")) {
-        nestedList.classList.add("active");
-        item.querySelector(".caret").classList.add("caret-down");
+
+// ------------ new filter ------------
+
+function nodeFilter(filterValue, highlight){
+    filteredItems.items = []; // Clear the items array
+    filteredItems.parents = []; // Clear the parents array
+    
+    var listItems = document.querySelectorAll("#myUL li");
+    listItems.forEach(item => {
+        var span = item.querySelector("span");
+        var containsFilter = span.textContent.trim().split(" {")[0].toLowerCase().includes(filterValue);
+        if (!highlight){
+            item.style.display = "none"; //  filter out nodes by default
+        };
+        if (span && containsFilter) {
+            if (!highlight) {
+                item.style.display = "block"; //  show nodes containing filter
+            } else {
+                filterHighlight(item);
+            }
+            filteredItems.items.push(item);
+            var parent = item.parentNode;
+            while (parent.id !== 'myUL') { // Traverse up to the root
+                if (parent.tagName === 'LI' && !filteredItems.parents.includes(parent)) {
+                    filteredItems.parents.push(parent);
+                    if (!highlight) {
+                        parent.style.display =  "block"; // show parent when filter out
+                    }
+                    expandFilterNode(parent);
+                }
+                parent = parent.parentNode; 
+            }
+        }
+    });
+    if (!highlight) {
+        for (var i = 0; i < filteredItems.items.length; i++) {
+            displaySubNodes(filteredItems.items[i])
+        }
     }
 }
-
-function reapplyHighlights(node, filterValue) {
+function reapplyFilterHighlight(){
+    for (var i = 0; i < filteredItems.items.length; i++) {
+        filterHighlight(filteredItems.items[i])
+    }
+}
+function filterHighlight(node){
     var spans = node.querySelectorAll("span");
     spans.forEach(span => {
         var originalText = span.textContent;
@@ -45,162 +84,27 @@ function reapplyHighlights(node, filterValue) {
         }
     });
 }
-
-function filterTreeHighLight(filterValue) {
-    
-    resetFilter(); // Assuming this resets the classList and innerHTML changes
-    var listItems = document.querySelectorAll("#myUL li");
-    listItems.forEach(item => {
-        var span = item.querySelector("span");
-        if (span) {
-            // Show all nodes by default, remove display none logic
-            item.style.display = "block";
-
-            // Expand nodes that have matching text or have descendants with matching text
-            if (span.textContent.toLowerCase().includes(filterValue) || searchSubNodes(item, filterValue)) {
-                // Find the parent nodes containing the filter text and expand them
-                var parentNodes = findParentNodes(item, filterValue);
-                parentNodes.forEach(parentNode => {
-                    expandBranchHighlight(parentNode); // Expand the parent node
-                    reapplyHighlights(parentNode, filterValue); // Reapply highlights to the parent node
-                });
-            }
-        }
+function displaySubNodes(node) {
+    var listItems = node.querySelectorAll("ul.nested > li"); // This will select all li elements directly inside any ul with class 'nested'
+    //console.log("list: ", listItems, " length: ", listItems.length);
+    listItems.forEach(function(item) {
+        item.style.display = 'block';
     });
 }
-function filterTreeHighLightReapply(filterValue) {
-    
-    var listItems = document.querySelectorAll("#myUL li");
-    listItems.forEach(item => {
-        var span = item.querySelector("span");
-        if (span) {
-            // Show all nodes by default, remove display none logic
-            item.style.display = "block";
-
-            // Expand nodes that have matching text or have descendants with matching text
-            if (span.textContent.toLowerCase().includes(filterValue) || searchSubNodes(item, filterValue)) {
-                // Find the parent nodes containing the filter text and expand them
-                var parentNodes = findParentNodes(item, filterValue);
-                parentNodes.forEach(parentNode => {
-                    reapplyHighlights(parentNode, filterValue); // Reapply highlights to the parent node
-                });
-            }
-        }
-    });
-}
-function findParentNodes(item, filterValue) {
-    var parentNodes = [];
-    var parentNode = item.parentNode.closest("li");
-    while (parentNode) {
-        var span = parentNode.querySelector("span");
-        if (span && (span.textContent.toLowerCase().includes(filterValue) || searchSubNodes(parentNode, filterValue))) {
-            parentNodes.push(parentNode); // Found a parent node containing the filter text
-        }
-        parentNode = parentNode.parentNode.closest("li");
-    }
-    return parentNodes;
-}
-// Function to recursively search through the subnodes
-function searchSubNodes(node, filterValue) {
+function expandFilterNode (node){
+    //console.log("node: ", node);
     var nestedList = node.querySelector(".nested");
-    if (nestedList) {
-        var subNodes = nestedList.querySelectorAll("li");
-        for (var i = 0; i < subNodes.length; i++) {
-            var subSpan = subNodes[i].querySelector("span");
-            if (subSpan) {
-                var subText = subSpan.textContent.toLowerCase();
-                if (subText.includes(filterValue) || searchSubNodes(subNodes[i], filterValue)) {
-                    return true; // Found matching text in subnodes
-                }
-            }
-        }
-    }
-    return false; // No matching text found in subnodes
-}
-
-// Function to filter tree nodes based on the input text
-function filterTree(filterValue) {
-    // Convert the filter value to lowercase for case-insensitive comparison
-    //filterValue = filterValue.toLowerCase();
-
-    // Get all list items in the tree
-    var listItems = document.querySelectorAll("#myUL li");
-
-    // Loop through each list item
-    listItems.forEach(function (item) {
-        // Get the topic name from the data-name attribute
-        var topicName = item.getAttribute("data-name").toLowerCase();
-
-        // Check if the topic name contains the filter value
-        var containsFilter = topicName.includes(filterValue);
-
-        // Show or hide the item based on visibility
-        item.style.display = containsFilter ? "block" : "none";
-
-        // Expand the parent node if it contains the filtered node
-        if (containsFilter) {
-            expandParent(item);
-        }
-    });
-}
-
-// Function to expand the parent node recursively
-function expandParent(node) {
-    var currentNode = node.parentNode;
-    while (currentNode && currentNode.tagName !== "LI") {
-        currentNode = currentNode.parentNode;
-    }
-    if (currentNode) {
-        var parentDataName = currentNode.getAttribute("data-name");
-        console.log("Parent data-name:", parentDataName);
-        currentNode.style.display = "block"; // Ensure the parent is visible
-        var caret = currentNode.querySelector(".caret");
-        if (caret) {
-            caret.classList.add("caret-down"); // Expand the caret icon
-        }
-        expandParent(currentNode); // Recursively expand the parent
-    }
-}
-
-// Function to expand the branch of a list item
-function expandBranch(item) {
-    var nestedList = item.querySelector(".nested");
-    if (nestedList) {
+    //console.log("nested list: ", nestedList);
+    if (nestedList && !nestedList.classList.contains("active")) {
         nestedList.classList.add("active");
-        item.querySelector(".caret").classList.add("caret-down");
+        node.querySelector(".caret").classList.add("caret-down");
     }
 }
-
-// Function to check if any child node contains the filter value
-function containsFilterInChildrenNodes(parentNode, filterValue) {
-    // Get all child list items of the parent node
-    var childItems = parentNode.querySelectorAll("ul li");
-
-    // Loop through each child item
-    for (var i = 0; i < childItems.length; i++) {
-        // Get the topic name from the data-name attribute
-        var topicName = childItems[i].getAttribute("data-name").toLowerCase();
-
-        // Check if the topic name contains the filter value
-        var containsFilter = topicName.includes(filterValue);
-
-        // If the child node contains the filter value, return true
-        if (containsFilter) {
-            return true;
-        }
-
-        // If the child item has nested items, recursively check them
-        if (childItems[i].classList.contains("nested") && containsFilterInChildrenNodes(childItems[i], filterValue)) {
-            return true;
-        }
-    }
-
-    // If no child node contains the filter value, return false
-    return false;
-}
+// ----------------- end of new filter --------------
 
 // Add an event listener to the filter button
 document.getElementById("filterButton").addEventListener("click", function () {
+    runFilterOnce = true;
     runFilter();
 });
 
@@ -210,34 +114,47 @@ var input = document.getElementById("filterInput");
 input.addEventListener("keypress", function (event) {
     // Check if the Enter key is pressed
     if (event.key === "Enter") { 
+        runFilterOnce = true;
         runFilter();
     }
 });
 
 function runFilter() {
-    // Get the filter input value
-    filterValue = document.getElementById("filterInput").value.toLowerCase();
-    // Filter the tree based on the input text
-    var filterTypeCheckbox = !document.getElementById("filterSwitch").checked;
-    if (filterTypeCheckbox) {
-        filterTreeHighLight(filterValue);
-        filterActive = true;
-    } else {
-        filterTree(filterValue);
+    if (runFilterOnce){
+        // Get the filter input value
+        filterValue = document.getElementById("filterInput").value.toLowerCase();
+        // Filter the tree based on the input text
+        var filterTypeCheckbox = !document.getElementById("filterSwitch").checked;
+        if (filterTypeCheckbox){
+            nodeFilter(filterValue, filterTypeCheckbox);
+            filterActive = true;
+        } else {
+            nodeFilter(filterValue, filterTypeCheckbox);
+            filterActive = false;
+        }
     }
+    runFilterOnce = false;
 }
 
 // Function to reset the filter and show all tree nodes
 function resetFilter() {
-    filterActive = false;
     // Clear the filter input value
     document.getElementById("filterInput").value = "";
-
     // Show all list items in the tree
-    var listItems = document.querySelectorAll("#myUL li");
-    listItems.forEach(function (item) {
-        item.style.display = "block";
-    });
+    if (!filterActive){
+        var listItems = document.querySelectorAll("#myUL li");
+        listItems.forEach(function (item) {
+            item.style.display = "block";
+        });
+    } else {
+        filteredItems.items.forEach(function (item) {
+            item.style.display = "block";
+        });
+        filteredItems.parents.forEach(function(item) {
+            item.style.display = "block";
+        });
+    }    
+    filterActive = false;
 }
 
 // Add an event listener to the reset button
@@ -246,20 +163,13 @@ document.getElementById("resetButton").addEventListener("click", function () {
     resetFilter();
     collapseList();
 });
-document.getElementById("connectButton").addEventListener("click", function() {
-    // Establish WebSocket connection to backend
-    const socket = new WebSocket("ws://localhost:3000/ws");
 
-    // Send "connect" command to backend
-    socket.addEventListener("open", function(event) {
-        socket.send("connect");
-    });
+document.getElementById("connect").addEventListener("click", function() {
+    socket.send("connect");
 
-    // Log messages received from backend
-    socket.addEventListener("message", function(event) {
-        console.log("Message from server:", event.data);
-    });
 });
-//document.onload(){
- //   console.log("hello")
-//};
+
+document.getElementById("disconnect").addEventListener("click", function() {
+    socket.send("disconnect");
+    
+});

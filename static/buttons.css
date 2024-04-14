@@ -38,13 +38,13 @@
     text-align: center; /* Center the text */
     text-decoration: none; /* Remove underline from links */
     display: inline-block; /* Allow setting dimensions */
-    font-size: 16px; /* Text size */
+    font-size: 14px; /* Text size */
     margin: 4px 2px; /* Margin around the button */
     cursor: pointer; /* Pointer/hand icon when hovering over the button */
     border-radius: 5px; /* Rounded corners */
     box-shadow: 0 8px 16px 0 var(--shadow); /* Shadow effect */
     transition: all 0.3s ease; /* Smooth transition for hover effects */
-    width: 80px;
+    width: 90px;
 
 }
 .button:hover {

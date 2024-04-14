@@ -37,22 +37,17 @@ function setupWebSocket() {
 
 // Run the setupWebSocket function when the page loads
 window.onload = function() {
+    filterActive = false;
     setupWebSocket().catch(error => {
         // Error occurred while setting up WebSocket connection
         console.error("Error establishing WebSocket connection:", error);
     });
 };
 
-
-//const socket = new WebSocket("ws://localhost:3000/ws");
 window.addEventListener('beforeunload', function() {
     socket.send('disconnect'); // send disconnect to backend when window closes
 });
-// Handle messages received from the server
-/*
-socket.addEventListener("message", function(event) {
-    updateList(event.data) // update data in frontend
-});*/
+
 // Function to update the list with fetched data
 function updateList(data) {
     var myUL = document.getElementById("myUL");
@@ -78,8 +73,8 @@ function updateTreeView(ul, newData, expandedItems, path = '') {
     }
     updateNodeValueDisplay(newData)
     if (filterActive) {
-        //reapplyHighlights(existingNode, filterValue); // Reapply highlights to the updated node
-        filterTreeHighLightReapply(filterValue);
+        reapplyFilterHighlight();
+        //filterTreeHighLightReapply(filterValue);
     }
 }
 function createOrUpdateNode(ul, key, value, nodePath, expandedItems, existingNode, existingNodes) {
@@ -143,15 +138,6 @@ function createOrUpdateNode(ul, key, value, nodePath, expandedItems, existingNod
         }
     }
 }
-/*
-        if (expandedItems.includes(nodePath)) {
-            li.querySelector('span').classList.add("caret-down");
-            const ul = li.querySelector('ul');
-            if (ul) {
-                ul.classList.add("active");
-            }
-        }*/
-
 
 function getExistingNodes(ul) {
     const existingNodes = new Map();
@@ -166,7 +152,6 @@ function getExistingNodes(ul) {
     });
     return existingNodes;
 }
-
 
 function countMessagesInSubNodes(data) {
     let totalCount = 0;
@@ -187,26 +172,34 @@ function countMessagesInSubNodes(data) {
 
     return totalCount;
 }
-
-
+function isValidJson(jsonString) {
+    try {
+        JSON.parse(jsonString);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
 function updateNodeValueDisplay(newData) {
     var selectedNode = document.querySelector("#myUL .selected");
     if (selectedNode) {
         var listItem = selectedNode.closest("li"); // Get the closest parent <li> element
         var nodePath = listItem.getAttribute("data-name"); // Retrieve data-name from the parent <li> element
         var nodeData = getNodeData(nodePath, newData);
-        var value = nodeData ? nodeData.hiddenMQTTvalue : null;
-        //var formattedJsonString = JSON.stringify(value, null, 2);
-        //var ne = JSON.parse(formattedJsonString);
-        //document.getElementById("nodeValueDisplay").textContent = value || "No value available";
-        //var indentedJsonString = formattedJsonString.replace(/ /g, "&nbsp;").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;");
+        var value = nodeData ? nodeData.hiddenMQTTvalue : null;     
         if (value){
-            document.getElementById("nodeValueDisplay").innerHTML = syntaxHighlight(value);
+            if (isValidJson(value)){
+                var parsedValue = JSON.parse(value);
+                var formattedValue = JSON.stringify(parsedValue, null, 2);
+                document.getElementById("nodeValueDisplay").innerHTML = syntaxHighlight(formattedValue);
+            } else {
+                document.getElementById("nodeValueDisplay").innerHTML = value;
+            }
         } else {
             document.getElementById("nodeValueDisplay").innerHTML = "No value available";
         }
     } else {
-        document.getElementById("nodeValueDisplay").textContent = "No node selected";
+        document.getElementById("nodeValueDisplay").innerHTML = "No node selected";
     }
 }
 
@@ -246,18 +239,6 @@ function getNodeData(nodePath, data) {
     }
     return node;
 }
-
-
-// Function to fetch updated data from the server
-function fetchData() {
-    fetch('/get-updated-json-data')
-        .then(response => response.text())
-        .then(data => updateList(data))
-        .catch(error => console.error('Error fetching data:', error));
-}
-
-// Automatically fetch updated data every second
-//setInterval(fetchData, 1000);
 
 // Function to get the expanded state of tree nodes
 function getExpandedItems(ul) {
@@ -346,6 +327,5 @@ document.getElementById("myUL").addEventListener("click", function (event) {
 function callback(name) {
 
     document.getElementById("selectedTopic").textContent = name;
-    // Log or use the path as needed
     console.log("Selected path:", name);
 }

@@ -5,10 +5,11 @@
 <!-- <style src="listStyle.css"></style> -->
 <link rel="stylesheet" type="text/css" href="listStyle.css">
 <link rel="stylesheet" type="text/css" href="buttons.css">
-<h2>MQTT client</h2>
-  A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.
-  <br>Click on the arrow(s) to open or close the tree branches.
-
+<h2 style="display: inline-block; vertical-align: top;">MQTT client</h2>
+<div style="display: inline-block; margin-left: 20px;">
+    <br>A tree view represents a hierarchical view of the subscribed topic, where each item can have a number of subitems.
+    <br>Click on the arrow(s) to open or close the tree branches.
+</div>
 </head>
 <body>
   <div class="headerContainer">
@@ -31,21 +32,27 @@
       <!-- Element 2 -->
       <button id="filterButton" class="button">Filter</button>
       <button id="resetButton" class="button">Reset</button>
-      
     </div>
+    <div>
+      <div style="margin-left: 30px;"><button id="connect" class="button">Connect</button></div>
+      <div style="margin-left: 30px;"><button id="disconnect" class="button">Disconnect</button></div>
+    </div>
+   <!-- <div class="darkMode">
+      <input type="checkbox" id="darkModeCheckbox" class="checkbox" checked>
+      <label for="darkModeCheckbox">Dark mode</label> -->
+  </div>
+  
   </div>
   <div class="container">
-    
     <div class="list">
-    
         <ul id="myUL" class="tree">
             <!-- Tree items will be dynamically added here -->
         </ul>
     </div>
     <div class="right-side">
-        <b>Selected topic: </b>
+        <div style="margin-top: -40px;"><b>Selected topic: </b></div>
         <div id="selectedTopic" class="selectedTopic"></div>
-        <br><b>Topic value: </b>
+        <div style="margin-top: -20px;"><b>Topic value: </b></div>
         <pre id="nodeValueDisplay" class="nodeValue"></pre>
     </div>
 </div>

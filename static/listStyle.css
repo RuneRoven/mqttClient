@@ -1,6 +1,7 @@
 .container {
   display: flex;
   flex-direction: row;
+  white-space: pre-wrap;
 }
 
 .right-side {
@@ -19,6 +20,7 @@
   border: 2px solid black;
   border-radius: 10px;
   overflow-wrap: break-word;
+  margin-top: -35px;
 }
 .key {
   color: red;
@@ -43,6 +45,7 @@
   word-wrap: break-word;
   border: 2px solid black;
   border-radius: 10px;
+  margin-top: -35px;
 }
 
 .list {

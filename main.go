@@ -48,17 +48,15 @@ func main() {
 		mqttTopic = "test"
 	}
 
-	mqttClient.Connect()
-	mqttClient.Subscribe(mqttTopic)
+	//mqttClient.Connect()
+	//mqttClient.Subscribe(mqttTopic)
 	// Serve static files from the "static" directory
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 	http.HandleFunc("/getWSport", getWSPort)
-	http.HandleFunc("/ws", handleWebSocket)
-	// Define your API endpoints
-	//http.HandleFunc("/get-updated-json-data", func(w http.ResponseWriter, r *http.Request) {
-	//	updateData(w, r, mqttClient)
-	//})
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		handleWebSocket(w, r, mqttClient, mqttTopic)
+	})
 
 	http.ListenAndServe(":"+port, nil)
 
@@ -67,7 +65,7 @@ func main() {
 	signal.Notify(sig, os.Interrupt)
 	<-sig
 }
-func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleWebSocket(w http.ResponseWriter, r *http.Request, mc *MQTTClient, topic string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade connection:", err)
@@ -81,7 +79,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	connectionsMu.Unlock()
 
 	for {
-		messageType, message, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
@@ -90,21 +88,24 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		if string(message) == "disconnect" {
 			// Close the WebSocket connection
+			mc.Disconnect()
 			log.Println("Disconnecting client")
 			break
 		}
 		// Check if the message is "connect"
 		if string(message) == "connect" {
 			// Call the connect function
+			mc.Connect()
+			mc.Subscribe(topic)
 			log.Println("connect using websocket")
 		}
 
 		// Echo message back to client
-		err = conn.WriteMessage(messageType, message)
-		if err != nil {
-			log.Println("Error writing message:", err)
-			break
-		}
+		//err = conn.WriteMessage(messageType, message)
+		//if err != nil {
+		//	log.Println("Error writing message:", err)
+		//	break
+		//}
 	}
 
 	// Handle disconnection: remove the closed connection from the list
@@ -118,38 +119,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
-		return
-	}
-	defer conn.Close()
-
-	for {
-		messageType, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("Error reading message:", err)
-			break
-		}
-		log.Printf("Received message: %s\n", message)
-
-		// Check if the message is "connect"
-		if string(message) == "connect" {
-			// Call the connect function
-			log.Println("connect using websocket")
-		}
-
-		// Echo message back to client
-		err = conn.WriteMessage(messageType, message)
-		if err != nil {
-			log.Println("Error writing message:", err)
-			break
-		}
-	}
-}
-*/
 // Function to send data to all connected clients
 func sendDataToClients(data []byte) {
 	connectionsMu.Lock()
@@ -197,31 +166,3 @@ func getWSPort(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"port": port})
 }
-
-/*
-func updateData(w http.ResponseWriter, r *http.Request, mqttClient *MQTTClient) {
-	// Lock access to messageHierarchy
-	mqttClient.messageHierarchyMu.Lock()
-	defer mqttClient.messageHierarchyMu.Unlock()
-
-	// Prepare the data for the template
-	data := GetStableHierarchy()
-	//data := mqttClient.messageHierarchy
-	// Convert the data to JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-		return
-	}
-
-	// Set the content type header to indicate JSON data
-	w.Header().Set("Content-Type", "application/json")
-
-	// Write the JSON data to the response writer
-	_, err = w.Write(jsonData)
-	if err != nil {
-		http.Error(w, "Failed to write response", http.StatusInternalServerError)
-		return
-	}
-}
-*/
