@@ -88,9 +88,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, mc *MQTTClient, top
 
 		if string(message) == "disconnect" {
 			// Close the WebSocket connection
+			mc.Unsubscribe(topic)
 			mc.Disconnect()
+			ResetStableHierarchy()
 			log.Println("Disconnecting client")
-			break
+			//break
 		}
 		// Check if the message is "connect"
 		if string(message) == "connect" {

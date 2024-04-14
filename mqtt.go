@@ -89,6 +89,13 @@ func (mc *MQTTClient) Disconnect() {
 		mc.client.Disconnect(250)
 		log.Println("Disconnected from MQTT broker")
 	}
+	mc.ResetMessageHierarchy()
+}
+func (mc *MQTTClient) ResetMessageHierarchy() {
+	mc.messageHierarchyMu.Lock()
+	defer mc.messageHierarchyMu.Unlock()
+
+	mc.messageHierarchy = make(MessageHierarchy)
 }
 
 // Subscribe subscribes to the specified topic
@@ -303,4 +310,12 @@ func DeepCopyHierarchy(src interface{}) interface{} {
 		fmt.Printf("Warning: Encountered an unhandled type: %T\n", src)
 		return src
 	}
+}
+func ResetStableHierarchy() {
+	// Create a new empty MessageHierarchy
+	newHierarchy := make(MessageHierarchy)
+
+	// Update the stable hierarchy with the new empty hierarchy
+	UpdateStableHierarchy(newHierarchy)
+
 }

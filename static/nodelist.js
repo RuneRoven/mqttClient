@@ -1,4 +1,4 @@
-let socket; // Declare socket variable in a higher scope
+var socket; // Declare socket variable in a higher scope
 
 // Function to get WebSocket port from the backend
 function getWebSocketPort() {

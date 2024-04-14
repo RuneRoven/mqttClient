@@ -29,7 +29,10 @@ function nodeFilter(filterValue, highlight){
     var listItems = document.querySelectorAll("#myUL li");
     listItems.forEach(item => {
         var span = item.querySelector("span");
-        var containsFilter = span.textContent.trim().split(" {")[0].toLowerCase().includes(filterValue);
+        if (span){
+            var containsFilter = span.textContent.trim().split(" {")[0].toLowerCase().includes(filterValue);
+        }
+        
         if (!highlight){
             item.style.display = "none"; //  filter out nodes by default
         };
@@ -163,13 +166,44 @@ document.getElementById("resetButton").addEventListener("click", function () {
     resetFilter();
     collapseList();
 });
+// Function to copy content to clipboard
+function copyToClipboard() {
+    var value = document.getElementById("nodeValueDisplay").innerText;
+
+    // Create a textarea element
+    var textarea = document.createElement("textarea");
+    textarea.value = value;
+
+    // Append the textarea to the body
+    document.body.appendChild(textarea);
+
+    // Select the content of the textarea
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    // Copy the selected content
+    document.execCommand("copy");
+
+    // Remove the textarea
+    document.body.removeChild(textarea);
+
+    // Optionally, provide feedback to the user
+    alert("Content copied to clipboard!");
+}
+
+// Add event listener to the copy button
+document.getElementById("copyButton").addEventListener("click", copyToClipboard);
 
 document.getElementById("connect").addEventListener("click", function() {
-    socket.send("connect");
-
+        socket.send("connect");
 });
 
 document.getElementById("disconnect").addEventListener("click", function() {
     socket.send("disconnect");
-    
+    var myUL = document.getElementById("myUL");
+
+    // Remove all child elements of myUL
+    while (myUL.firstChild) {
+        myUL.removeChild(myUL.firstChild);
+    }
 });
