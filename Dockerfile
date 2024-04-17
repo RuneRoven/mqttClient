@@ -1,0 +1,17 @@
+FROM golang:1.22.1-alpine
+WORKDIR /app
+
+COPY . .
+RUN go mod download && \
+    go build -o mqttClient
+
+ENV PORT=3000
+ENV MQTT_ADDRESS=192.168.3.22
+ENV MQTT_PORT=1883
+ENV MQTT_USER=node-red
+ENV MQTT_PASS=INSECURE_INSECURE_INSECURE
+ENV MQTT_MAIN_TOPIC=#   
+
+EXPOSE $PORT
+
+CMD [ "./mqttClient" ]

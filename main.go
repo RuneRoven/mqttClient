@@ -13,10 +13,7 @@ import (
 )
 
 var (
-	//tpl           = template.Must(template.ParseFiles("index.html"))
-	messageCache map[string]string
-	//latestMessage        string
-	//cacheMutex           sync.RWMutex
+	messageCache         map[string]string
 	stableHierarchyMutex sync.RWMutex
 	connections          []*websocket.Conn
 	connectionsMu        sync.Mutex
@@ -34,7 +31,7 @@ func main() {
 	// load environment file
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading .env file")
+		log.Println("Error loading .env file, using local env values")
 	}
 	// set the webserver port
 	port := os.Getenv("PORT")
@@ -42,14 +39,13 @@ func main() {
 		port = "3000"
 	}
 	// create new mqtt client and set topic from env file
+	log.Println("Creating new mqtt client")
 	mqttClient := NewMQTTClient()
 	mqttTopic := os.Getenv("MQTT_MAIN_TOPIC")
 	if mqttTopic == "" {
-		mqttTopic = "test"
+		mqttTopic = "#"
 	}
 
-	//mqttClient.Connect()
-	//mqttClient.Subscribe(mqttTopic)
 	// Serve static files from the "static" directory
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
@@ -57,7 +53,7 @@ func main() {
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, mqttClient, mqttTopic)
 	})
-
+	log.Println("Starting web server at port: ", port)
 	http.ListenAndServe(":"+port, nil)
 
 	// Set up signal handling for graceful shutdown
@@ -156,7 +152,7 @@ func getWSPort(w http.ResponseWriter, r *http.Request) {
 	// load environment file
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading .env file")
+		log.Println("Error loading .env file, using local env variables")
 	}
 	// set the webserver port
 	port := os.Getenv("PORT")
