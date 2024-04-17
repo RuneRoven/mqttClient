@@ -30,3 +30,11 @@ These are the available environment variables to use:
 - MQTT_PASS=INSECURE_INSECURE_INSECURE
 - MQTT_MAIN_TOPIC=#
 
+## Filter function
+Highlight filter. When searching it expands the parent to the nodes
+where the text is found and highlight the text
+![Highlight filter](/images/highlightfilter.png)
+
+Filter out. When searching it expands the parent to the nodes
+where the text is found and removes all branches not containing the text
+![Filterout](/images/filterout.png)
