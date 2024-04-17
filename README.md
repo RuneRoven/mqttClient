@@ -16,7 +16,10 @@ spin it up using some env variables or clone the repo
 and build it locally and run the executable.
 The client will be available at localhost:PORT or 127.0.0.1:PORT
 The client starts disconnected and automatically disconnects 
-when leaving the page to reduce unnecessary load on the mqtt broker
+when leaving the page to reduce unnecessary load on the mqtt broker.
+When running in docker you use the env variable to change the basic settings. 
+When running locally using the .exe file or building for another os you 
+can set the env variable in the .env file
 
 ### ENV
 These are the available environment variables to use:
